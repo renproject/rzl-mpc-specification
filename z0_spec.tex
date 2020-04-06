@@ -1,0 +1,2338 @@
+\documentclass{article}
+\usepackage{amssymb,amsmath,amsthm}
+
+% Referencing items in an enumerate environment
+\usepackage{enumitem}
+
+% Flag toggling functionality
+\usepackage{etoolbox}
+
+% For automatic spacing tweaks to avoid overfull boxes
+\usepackage{microtype}
+
+\usepackage[style=numeric,sorting=none]{biblatex}
+\addbibresource{\jobname.bib}
+
+% Conditionals
+%-----------------------------------------------------------------------------%
+
+% Draft status
+\newtoggle{draft}
+
+% Title page
+\newtoggle{titlepage}
+
+% Contents page
+\newtoggle{contentspage}
+
+% Colour inversion
+\newtoggle{dark}
+\newtoggle{colour}
+
+% Toggle
+\togglefalse{draft}
+\togglefalse{colour}
+\togglefalse{dark}
+\toggletrue{titlepage}
+\toggletrue{contentspage}
+
+%-----------------------------------------------------------------------------%
+
+% Title page needs graphicx to use \includegraphics
+\iftoggle{titlepage}{%
+	\usepackage{graphicx}
+}{}
+
+% Watermark
+\iftoggle{draft}{%
+	\usepackage{draftwatermark}
+
+	\SetWatermarkScale{5}
+
+	% Set font to supported size. If different size required, use a suitable
+	% package to avoid warnings.
+	\SetWatermarkFontSize{24.88pt}
+}
+
+% Document colouring
+\iftoggle{colour}{%
+	\usepackage{xcolor}
+
+	\iftoggle{dark}{%
+		\pagecolor[RGB]{40,40,40}
+		\color[RGB]{235,219,178}
+	}{%
+		\pagecolor[RGB]{251,241,199}
+		\color[RGB]{60,56,54}
+	}
+}{}
+
+% Nomenclature
+\newcommand\name{z0}
+\newcommand\paper{paper}
+
+\newcommand\newProtocol[2]{%
+	\expandafter\newcommand\csname f#1\endcsname[1]{%
+		f_\textup{\texttt{#2}}^{##1}
+	}%
+	\expandafter\newcommand\csname pi#1\endcsname[1]{%
+		\pi_\textup{\texttt{#2}}^{##1}
+	}%
+}
+
+% Mathematical notation
+\newcommand{\share}[2]{\left[#1\right]_{#2}}
+\newcommand{\eqd}[0]{\stackrel{d}{=}}
+\newcommand{\powerset}{\raisebox{.15\baselineskip}{\Large\ensuremath{\wp}}}
+\newcommand{\set}[2]{\left\{ #1 \middle| #2 \right\}}
+\newcommand{\seq}[1]{\left[#1\right]}
+\newcommand{\seqZ}[1]{\left[#1\right]_0}
+
+% Mathematical environments
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}{Corollary}
+\newtheorem{lemma}{Lemma}
+\newtheorem{claim}{Claim}
+\newtheorem{definition}{Definition}
+\newtheorem{assumption}{Assumption}
+
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+
+% Protocols
+\newProtocol{Open}{OPEN}
+\newProtocol{SOpen}{SO}
+\newProtocol{DOpen}{DO}
+\newProtocol{SDOpen}{SDO}
+\newProtocol{BRNG}{BRNG}
+\newProtocol{RNG}{RNG}
+\newProtocol{RZG}{RZG}
+\newProtocol{RKPG}{RKPG}
+\newProtocol{MulOpen}{MO}
+\newProtocol{Mul}{MUL}
+\newProtocol{Inv}{INV}
+\newProtocol{Sign}{SIGN}
+
+% Common notation
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\F}{\mathbb{F}}
+\newcommand{\G}{\mathbb{G}}
+\renewcommand{\P}{\mathbb{P}}
+\newcommand{\ind}{\mathcal{I}}
+\newcommand{\ic}{\mathcal{I}_c}
+\newcommand{\ih}{\mathcal{I}_h}
+
+\begin{document}
+
+\iftoggle{titlepage}{%
+	\begin{titlepage}
+		\begin{center}
+			\vspace*{1cm}
+
+			\Huge \textbf{RenVM Secure Multiparty Computation}
+
+			\vspace{0.5cm}
+
+			%\LARGE Subtitle
+
+			\vspace{1.5cm}
+
+			\large\textbf{Ross Pure, Zian-Loong Wang}
+
+			\vspace{4.0cm}
+
+			\includegraphics[width=0.4\textwidth]{ren_logo_black.png}
+		\end{center}
+	\end{titlepage}
+}
+
+\iftoggle{contentspage}{%
+	\tableofcontents
+	\newpage
+}
+
+\section{Introduction}
+
+The purpose of this \paper{} is to specify the secure multiparty computation
+(SMPC) that is used in RenVM to perform distributed ECDSA signatures, and prove
+its security. To achieve this, we start by describing the fundamental SMPC
+primitives of secret sharing, opening shared secrets, random number generation,
+and random keypair generation. Using these we can construct more complicated
+primitives such as multiplication and field inversion, and finally use all of
+these to construct a distributed ECDSA signature protocol. Security will
+defined using a composable framework. This will allow us to prove security for
+the primitives, and then compose them together in a secure way.
+
+The rest of the \paper{} is structured as follows. First, background material
+including probability theory, Shamir secret sharing and computational
+assumptions will be presented. Next, the security framework to be used is
+described. The rest of the paper is dedicated to the SMPC protocols and their
+security. Initially, the more primitive protocols such as opening shared
+secrets and random number generation are described. Next, higher level
+protocols like multiplication and field inversion are constructed using these
+primitives. Finally, we will be in a position to specify how distributed ECDSA
+signatures are computed.
+
+\section{Background}
+
+In this section we outline some background material that will be used
+throughout the \paper{}. This includes basic probability theory definitions and
+theorems, Shamir Secret Sharing, cryptographic assumptions and also some
+notation.
+
+\subsection{Notation}
+
+Here we outline some common notation that will be used in this \paper{}. The
+natural numbers are denoted by the set $\N$, where $0 \notin \N$; i.e.\ $\N =
+\{1, 2, \ldots\}$. We will use $\F$ to denote an arbitrary field (in this
+\paper{} we will only be concerned with finite fields). When talking about
+field elements, it is understood that $0$ and $1$ represent respectively the
+additive and multiplicative identity of the field. An anonymous probability
+measure is represented by $\P$; this will appear in cases where a probability
+measure is being used where one has not been explicitly defined, and the
+definition of it should be clear from the context. The number of elements in a
+finite set $A$ will be denoted $|A|$. Generally, we will denote index sets as
+$\mathcal{I}$ or its non calligraphic form $I$. We also state the following
+definitions. For a given index set $\mathcal{I}$, we define the notation
+${(x_i)}_{i \in \mathcal{I}}$ to be the $|\mathcal{I}|$-tuple of elements
+$(x_{i_1}, x_{i_2}, \ldots, x_{i_n})$, where $\{i_1, \ldots, i_n\} =
+\mathcal{I}$. In all cases in this \paper{}, there will exist some order on
+$\mathcal{I}$ (almost always we will have $\mathcal{I} \subset \F$ for some
+finite field $\F$), and so in the above we will assume that $i_1 < i_2 < \cdots
+< i_n$. The empty set will be denoted $\emptyset$.
+
+\begin{definition}
+	Let a set $A$ be given. Denote the \textit{power set} of $A$, i.e.\ the set
+	of all subsets of $A$, by $\powerset(A)$.
+\end{definition}
+
+\begin{definition}
+	Let the set of consecutive natural numbers from 1 to $n$ inclusive, i.e.\
+	$1, 2, \ldots, n$, be denoted by $\seq{n}$.
+\end{definition}
+
+\begin{definition}
+	Let the set of consecutive natural numbers from 0 to $n$ inclusive, i.e.\
+	$0, 1, \ldots, n$, be denoted by $\seqZ{n}$.
+\end{definition}
+
+\subsection{General Definitions}
+
+We will sometimes refer to a function as being \textit{negligible}. This is
+made precise in the following definition.
+\begin{definition}[Negligible function]
+	A function $f: \N \to \mathbb{R}$ is negligible if for all $c \in \N$ there
+	exists some $N \in \N$ such that for all $x \ge N$
+	\begin{align*}
+		|f(x)| < \frac{1}{x^c}.
+	\end{align*}
+	In this case we say that $f$ \textbf{is a negligible function}, or that $f$
+	\textbf{is negligible}.
+\end{definition}
+
+\subsection{Probability}
+
+Many of the security definitions and consequently also the proofs of security
+are formulated in terms of probability theory. We therefore collect some key
+definitions and theorems that we will use in this \paper{}.
+
+We will use the measure theoretic formulation of probability theory. The key
+structure from measure theory is that of a \textit{measure space}, which is
+defined as follows.
+
+\begin{definition}
+	A measure space is a triple $(X, \Sigma, \mu)$ where $X$ is a set, $\Sigma$
+	is a $\sigma$-algebra on $X$ and $\mu$ is a function from $\Sigma$ to
+	$\mathbb{R}$ such that the following conditions hold:
+	\begin{itemize}
+		\item For all $E \in \Sigma$, $\mu(E) \ge 0$
+		\item $\mu(\emptyset) = 0$
+		\item For any countable collection of disjoint sets $E_1, E_2, \ldots
+			\in \Sigma$ we have
+			\begin{align*}
+				\mu\left(\bigcup_{i=1}^\infty E_i\right) =
+				\sum_{i=1}^\infty \mu(E_i)
+			\end{align*}
+	\end{itemize}
+\end{definition}
+
+In this formulation of probability theory, a \textit{probability space} is
+simply a special case of a measure space:
+
+\begin{definition}
+	A probability space is a measure space $(\Omega, \Sigma, \P)$ such that the
+	measure of the entire space is 1; that is,
+	\begin{align*}
+		\P(\Omega) = 1.
+	\end{align*}
+\end{definition}
+
+We will often consider the uniform probability measure on a finite set. We
+define the standard notation that we will use and formalise the concept as
+follows.
+
+\begin{definition}[Uniform probability measure]
+	Let $E$ be a finite set. We denote the uniform probability measure on the
+	measurable space $(E, \powerset(E))$ by
+	\begin{align*}
+		U_E: \powerset(E) \to \mathbb{R}.
+	\end{align*}
+	That is, for each $A \in \powerset(E)$ we have $U_E(A) = \frac{|A|}{|E|}$
+	where the notation $|\cdot|$ denotes the number of elements in the given
+	set.
+\end{definition}
+
+The next key object from probability theory is the \textit{random variable}.
+This is formalised as a measurable function.
+
+\begin{definition}
+	Let $(\Omega, \Sigma, \P)$ be a probability space and $(E, \mathcal{E})$ be
+	a measurable space. A random variable $X$ is a measurable function $X:
+	\Omega \to E$.
+\end{definition}
+
+Note that the random variable $X$ induces a probability measure $\mu$ on the
+measurable space $(E, \mathcal{E})$ which we can define by
+\begin{align*}
+	\mu: \mathcal{E} &\to \mathbb{R}\\
+	A &\mapsto \P(\set{\omega \in \Omega}{X(\omega) \in A}),
+\end{align*}
+and so we also have the induced probability space $(E, \mathcal{E}, \mu)$. Also
+note that for a measurable space $(F, \mathcal{F})$ and measurable function $f:
+E \to F$, we can define a new random variable $Y = f \circ X$. Thus when we
+write $f(X)$ we understand this to be the random variable $Y$. It is also
+useful to define the following common short hand notations:
+
+\begin{definition}
+	Let $(\Omega, \Sigma, \P)$ be a probability space, $(E, \mathcal{E})$ be a
+	measurable space and $X: \Omega \to E$ be a random variable. Let the
+	induced probability measure on $(E, \mathcal{E})$ be $\mu$. Define the
+	following short hand notations:
+	\begin{itemize}
+		\item $\P(X = x) = \mu(X = x) = \P(\set{\omega \in
+			\Omega}{X(\omega) = x}) \quad \forall x \in E$
+		\item $\P(X \in A) = \mu(X \in A) = \mu(A) \quad \forall A \in
+			\mathcal{E}$
+	\end{itemize}
+\end{definition}
+
+While the latter is actually not shorter than the technically correct version,
+it is conceptually clearer which is why we use it.
+
+We now define what it means for two random variables to have equal
+distributions. The idea is that the possible outcomes for the random variables
+should have the same probabilities.
+
+\begin{definition}
+	Let $(\Omega_1, \Sigma_1, \P_1)$ and $(\Omega_2, \Sigma_2, \P_2)$ be
+	probability spaces, $(E, \mathcal{E})$ a measurable space, and $X_1:
+	\Omega_1 \to E$ and $X_2: \Omega_2 \to E$ be two random variables. We say
+	that $X_1$ and $X_2$ are \textbf{identically distributed} if $\forall A \in
+	\mathcal{E}$ we have
+	\begin{align*}
+		\P_1\left(\set{\omega \in \Omega_1}{X_1(\omega) \in A}\right) =
+		\P_2\left(\set{\omega \in \Omega_2}{X_2(\omega) \in A}\right).
+	\end{align*}
+	In this case we write $X_1 \eqd X_2$.
+\end{definition}
+
+Here we prove a result that will be useful in the proofs of security. This
+formalises the notion that adding a uniformly random element to some other
+element results in an element that is itself uniformly random. This is
+presented abstractly in the following theorem, and then the result of interest
+follows as a corollary.
+
+\begin{theorem}\label{thm:unif}
+	Let $(\Omega, \Sigma, \P)$ be a probability space, $E$ a finite set with
+	$n$ elements, and $f_i: \Omega \to E$ for $1 \le i \le n$ be functions that
+	are measurable in the context of the measurable spaces $(\Omega, \Sigma)$
+	and $(E, \powerset(E))$ and satisfy the property
+	\begin{align*}
+		f_i(\omega) \ne f_j(\omega)
+		\; \forall \omega \in \Omega
+		\; \forall i \ne j\;\text{where}\;i, j \in \{1, \ldots, n\}.
+	\end{align*}
+	Let $F = \{f_1, \ldots, f_n\}$ and consider the probability space $(F,
+	\powerset(F), U_F)$. Construct the product probability space $(\Omega
+	\times F, \Sigma \times \powerset(F), \mu)$ where $\mu$ is the appropriate
+	product measure. Define the random variable
+	\begin{align*}
+		X: \Omega \times F &\to E\\
+		(\omega, f) &\mapsto f(\omega)
+	\end{align*}
+	Then $X$ is uniformly distributed on $E$.
+\end{theorem}
+
+\begin{proof}
+	We need only show that $\mu(X = e) = \frac{1}{n}$ for all $e \in E$. To do
+	this, define
+	\begin{align*}
+		A_{i,e} = \set{\omega \in \Omega}{f_i(\omega) = e}.
+	\end{align*}
+	Since each $f_i$ is measurable, it follows that $A_{i,e} \in \Sigma$ for
+	all $i \in \seq{n}$ and $e \in E$. Notice that these sets partition
+	$\Omega$; this is summarised in the following claim.
+	\begin{claim}
+		The sets $A_{i,e}$ for $i \in \seq{n}$ partition $\Omega$.
+	\end{claim}
+	\begin{proof}
+		To show this, we need to show that each $A_{i,e}$ is disjoint, and that
+		they cover $\Omega$. The first property holds due to the assumption
+		that $f_i(\omega) \ne f_j(\omega)$ for all $i \ne j$, $i, j \in
+		\seq{n}$ and for all $\omega \in \Omega$. This assumption also shows
+		that for all $\omega \in \Omega$ there must exist some $i \in \seq{n}$
+		for which $f_i(\omega) = e$, as $E$ only has $n$ elements. But this is
+		precisely the statement that $\omega \in A_{i,e}$. This completes the
+		proof.
+	\end{proof}
+	Also, these sets define a partition of our set of interest:
+	\begin{align*}
+		\bigcup_{i=1}^n A_{i,e} \times \{f_i\}
+		= \set{(\omega, f) \in \Omega \times F}{X(\omega, f) = e}.
+	\end{align*}
+	Thus for any $e \in E$ we have
+	\begin{align}
+		\label{eq:unif_thm}\mu(X = e) =
+		\sum_{i=1}^n \mu\left(A_{i,e} \times \{f_i\}\right).
+	\end{align}
+	By the definition of the product measure we know that
+	\begin{align*}
+		\mu(A_{i,e} \times \{f_i\}) = \P(A_{i,e})U_F(\{f_i\}),
+	\end{align*}
+	and so using this and the fact that $A_{1,e}, \ldots, A_{n,e}$ partitions
+	$\Omega$ we can reduce~\eqref{eq:unif_thm} to
+	\begin{align*}
+		\mu(X = e) &= \frac{1}{n}\sum_{i=1}^n \P(A_{i,e})\\
+		&= \frac{1}{n},
+	\end{align*}
+	which is the desired result.
+\end{proof}
+
+\begin{corollary}\label{cor:unif}
+	Let $(\F^n, \powerset(\F^n), \P)$ be a probability space, where $\F$ is a
+	finite field. Let $x, y \in \F^n$ be random such that $x$ is distributed
+	according to $\P$, and $y$ is uniformly distributed and independent from
+	$x$. Then the random variable $x + y$ is uniformly distributed, where when
+	$n > 1$ the addition is element-wise.
+\end{corollary}
+
+\begin{proof}
+	This follows from Theorem~\ref{thm:unif} by setting $(\Omega, \Sigma, \P) =
+	(\F^n, \powerset(\F^n), \P)$, $E = \F^n$, and defining $f_i$ by
+	$f_i(\omega) = \omega + i$ for all $i \in \F^n$.
+\end{proof}
+
+Here we formalise another result that will be used in the proofs of security,
+to ease their exposition. The result is simple: if two random variables have
+equal distributions, then applying some deterministic function $f$ to these
+random variables results in two new random variables that also have equal
+distributions.
+
+\begin{theorem}\label{thm:eqd_det}
+	Let $(\Omega_1, \Sigma_1, \P_1)$ and $(\Omega_2, \Sigma_2, \P_2)$ be
+	probability spaces, $(E, \mathcal{E})$ be a measurable space, and $X_1:
+	\Omega_1 \to E$ and $X_2: \Omega_2 \to E$ be random variables. Let $(F,
+	\mathcal{F})$ be a measurable space and $f: E \to F$ be a measurable
+	function. Then if $X_1 \eqd X_2$, it follows that $f(X_1) \eqd f(X_2)$.
+\end{theorem}
+
+\begin{proof}
+	Define the random variables $Y_1 = f \circ X_1$ and $Y_2 = f \circ X_2$ and
+	let $A \in \mathcal{F}$ be arbitrary. We need to show that
+	$\P_1(Y_1^{-1}(A)) = \P_2(Y_2^{-1}(A))$. But by assumption
+	$\P_1(X_1^{-1}(B)) = \P_2(X_2^{-1}(B))$ for any $B \in \mathcal{E}$, and in
+	particular for $B = f^{-1}(A)$.
+\end{proof}
+
+\subsection{Secret Sharing}\label{sec:sss}
+
+\newcommand{\spl}[1][k]{\vartheta_{#1}}
+
+We will consider the secret sharing technique of Shamir~\cite{shamir_1979}.
+Shamir secret sharing is a technique that allows for the distribution of a
+secret to $n$ players such that any subset of $k$ or more players can
+reconstruct the secret, but any less than $k$ can learn nothing about the
+secret. The parameters $n, k \in \N$ (where $n \ge k$) can be chosen as
+required.
+
+Any secret in a field can be shared. Let $(\F, +, \;\cdot\;)$ be a finite field
+and $n, k \in \N$ be given where $n \ge k$. Let the $n$ players be
+${\{P_i\}}_{i \in \mathcal{I}}$ where $\mathcal{I} \subset \F \setminus \{0\}$
+and $|\mathcal{I}| = n$. We can ``share'' a secret $s \in \F$ by first choosing
+uniformly random $c_1, \ldots, c_{k-1} \in \F$ and constructing the polynomial
+\begin{align*}
+	p(x) = s + \sum_{j=1}^{k-1} c_j x^j.
+\end{align*}
+Player $P_i$ is given a ``share'' $s_i = p(i)$. Note that $p(0) = s$ which is
+why we should ensure that $0 \notin \mathcal{I}$.
+
+Any subset of players ${\{P_i\}}_{i \in \mathcal{R}}$ such that $\mathcal{R}
+\subset \mathcal{I}$ and $|\mathcal{R}| \ge k$ can reconstruct the secret $s$
+by interpolating to reconstruct the original polynomial as follows:
+\begin{align*}
+	p(x)
+	=
+	\sum_{i \in \mathcal{R}}
+		s_i
+		\prod_{\substack{j \in \mathcal{R}\\j \ne i}}
+			\frac{x - x_j}{x_i - x_j}.
+\end{align*}
+The secret is simply $p(0)$ and so the players can find $s$ using the above;
+\begin{align*}
+	s = \sum_{i \in \mathcal{R}}
+		s_i
+		\prod_{\substack{j \in \mathcal{R}\\j \ne i}}
+			\frac{x_j}{x_j - x_i}.
+\end{align*}
+Define the function that takes the random coefficients to resulting shares by
+\begin{align*}
+	\spl:
+	\powerset(\F) \times \F^k &\to \F^{|\mathcal{I}|}\\
+	\mathcal{I}, (c_0, \ldots, c_{k-1})
+	&\mapsto
+	{\left(\sum_{i=0}^{k-1} j^i c_i\right)}_{j \in \mathcal{I}},
+\end{align*}
+where naturally the secret is $c_0$.
+
+We now prove a result that tells us how a subset of shares is distributed given
+that we know how the secret is distributed. This result will be useful later on
+in our security proofs.
+
+\begin{theorem}\label{thm:shareDist}
+	Let $x_1, \ldots, x_n$ be a $k$-sharing of some $x \in \F$, where $x$ has
+	distribution determined by the probability space $(\F, \powerset(\F),
+	\mu)$. Suppose that the sharing is a uniformly random one; that the
+	remaining coefficients $c_1, \ldots, c_{k-1}$ that define the sharing are
+	all uniformly and independently distributed. Let $I \subset \mathcal{I}$
+	with $|I| = t$. Precisely, the set ${(x_i)}_{i \in I}$ is the random
+	variable
+	\begin{align}\label{eq:shareDist}
+		\begin{aligned}
+			X: \F^k &\to \F^t\\
+			(x, c_1, \ldots, c_{k-1}) &\mapsto
+			{\left(x + \sum_{j=1}^{k-1} c_j i^j\right)}_{i \in I}
+		\end{aligned}
+	\end{align}
+	which has the associated product probability measure that we will denote by
+	$\P_t$. Then this measure satisfies
+	\begin{align*}
+		\P_t(X = z) =
+		\begin{cases}
+			\mu(\{y\})|\F|^{-k+1} & t \ge k\\
+			|\F|^{-t} & t < k
+		\end{cases}
+	\end{align*}
+	for all $z \in \F^t$ that form part of some consistent $k$-sharing, where
+	in the former case $y \in \F$ is determined uniquely from $z$.
+\end{theorem}
+
+\begin{proof}
+	We consider three separate cases.
+	\begin{itemize}
+		\item $t \ge k$: In this case, we can view
+			equation~\eqref{eq:shareDist} as a set of $t$ linear equations with
+			$k$ unknowns, and hence has a unique solution for $(x, c_1, \ldots,
+			c_{k-1})$ (and in the cases where $t > k$ and the set of equations
+			is overconstrained, we know that it will not have no solutions
+			because we have defined the sharing to be correct). Let this
+			solution be $z = (y, z_1, \ldots, z_{k-1})$. Then from independence
+			we have
+			\begin{align*}
+				\P_t(X = z) &=
+				\P_t\left(
+					x = y \cap \bigcap_{i = 1}^{k-1} c_i = z_i
+				\right)\\
+				&= \P_t(x = y)
+				\P_t((c_1, \ldots, c_{k-1}) = (z_1, \ldots, z_{k-1}))\\
+				&= \mu(\{y\})|\F|^{-k+1},
+			\end{align*}
+			which is the desired result for this case.
+
+		\item $t = k - 1$: Suppose that we fix $x$ in
+			equation~\eqref{eq:shareDist}. We will again have a system of (in
+			this case $k-1$) linear equations with as many unknowns, and so we
+			must have a unique solution $d_y$ for $(c_1, \ldots, c_{k-1})$ for
+			a given set of shares $z$. We may therefore write
+			\begin{align*}
+				\P_t(X = z) &=
+				\sum_{y \in \F}
+				\P_t(x = y \cap (c_1, \ldots, c_{k-1}) = d_y)\\
+				&= \sum_{y \in \F} \mu(\{y\})|\F|^{-k+1}\\
+				&= |\F|^{-k+1}.
+			\end{align*}
+			Since $t = k - 1$ this is the desired result.
+
+		\item $t < k - 1$: Here we take a similar approach to the previous
+			case. If we fix $x = y$ but also $(c_{t+1}, \ldots, c_{k-1}) = c$
+			in equation~\eqref{eq:shareDist}, then we have $t$ linear equations
+			in the $t$ unknowns $c_1, \ldots, c_t$, which has a unique solution
+			for a given set of shares $z$ that we will denote $d_{y, c}$. We
+			may then write the probability $P(X = z)$ as
+			\begin{align*}
+				\sum_{y \in \F}\sum_{c \in \F^{k - 1 - t}}
+				\P_t(
+					x = y \cap
+					(c_1, \ldots, c_t) = d_{y, c} \cap
+					(c_{t+1}, \ldots, c_{k-1}) = c
+				),
+			\end{align*}
+			which we can again use independence and our known distributions to
+			simplify to
+			\begin{align*}
+				\sum_{y \in \F}\sum_{c \in \F^{k - 1 - t}}
+				\mu(\{y\})|\F|^{-t}|\F|^{-k+1+t}
+				=
+				|\F|^{-t}.
+			\end{align*}
+			This final case completes the proof.
+	\end{itemize}
+\end{proof}
+
+Often, we will need to consider what the distribution of the shares are, given
+some subset that has been fixed. The following definition introduces a notation
+for the set of possible sharings given the fixed subset.
+
+\newcommand{\shareRestrict}[3]{S_{#1, #2, #3}}
+
+\begin{definition}
+	Let $t, k, n \in \N$ with $t < k \le n$. Let $\mathcal{I} \in \F^n$ be an
+	index set with $|\mathcal{I}| = n$ and let $I \subset \mathcal{I}$ be such
+	that $|I| = t$. Let the shares $x = {(x_i)}_{i \in I} \in \F^t$ be fixed.
+	Then we define the set $\shareRestrict{x}{\mathcal{I}}{I}$ to be the set of
+	possible collections of $n - t$ shares that extend $x$ to a consistent
+	$k$-sharing that has $n$ shares of some field element. Precisely,
+	$\shareRestrict{x}{\mathcal{I}}{I}$ is the set of all values ${(y_i)}_{i
+	\in \mathcal{I} \setminus I}$ in $\F^{n-t}$ such that there exists $(c_0,
+	\ldots, c_{k-1}) \in \F^k$ for which the following hold:
+	\begin{align*}
+		x_i &= \sum_{j=0}^{k-1} c_j i^j \quad
+		\forall i \in I,\\
+		y_i &= \sum_{j=0}^{k-1} c_j i^j \quad
+		\forall i \in \mathcal{I} \setminus I.
+	\end{align*}
+\end{definition}
+
+An easy property of $\shareRestrict{x}{\mathcal{I}}{I}$ is that it has
+$|\F|^{k-t}$ elements. This is summarised in the following theorem.
+
+\begin{theorem}\label{thm:restrictSize}
+	Let $t, k, n \in \N$ with $t < k \le n$. Let $\mathcal{I} \in \F^n$ be an
+	index set with $|\mathcal{I}| = n$ and let $I \subset \mathcal{I}$ be such
+	that $|I| = t$. Let the shares $x = {(x_i)}_{i \in I} \in \F^t$ be fixed.
+	Then
+	\begin{align*}
+		|\shareRestrict{x}{\mathcal{I}}{I}| = |\F|^{k-t}.
+	\end{align*}
+\end{theorem}
+
+\begin{proof}
+	We know that if we have $k$ fixed shares $y_1, \ldots, y_k \in \F$ with
+	corresponding indices $i_1, \ldots, i_k \in \F$, then they are related to
+	the coefficients of the sharing by the $k$ equations
+	\begin{align*}
+		y_j = \sum_{l=0}^{k-1} c_l i_j^l.
+	\end{align*}
+	Since this is $k$ linear equations in the $k$ unknowns $c_0, \ldots,
+	c_{k-1}$, we know that there is a unique solution. It follows that the same
+	is true given our $t$ fixed shares $x$ if we fix a further $k-t$ of them.
+	But these additional $k - t$ shares can also be any values, and so we have
+	$|\F|^{k-t}$ choices for these, after which all of the shares will be
+	fixed. The result follows.
+\end{proof}
+
+Next, we prove a theorem about the relationship of the shares of a secret to
+the coefficients of the associated polynomial. It is clear from the definition
+of the shares that they are a linear map of the coefficients, but the following
+theorem shows that the reverse is also true; the coefficients can be computed
+as a linear map applied to some set of $k$ shares.
+
+\begin{theorem}\label{thm:shareCoeffLO}
+	Let $x \in \F$ and ${(x_i)}_{i \in \mathcal{I}}$ be a $k$-sharing of $x$
+	for some index set $\mathcal{I} \subset \F$ with $|\mathcal{I}| = n \ge k$.
+	Let the associated coefficients for the sharing be $c_0, \ldots, c_{k-1}$.
+	Then for each $\mathcal{R} \subset \mathcal{I}$ with $|\mathcal{R}| = k$
+	and $j \in \{0, \ldots, k-1\}$, there exist field elements
+	${(\lambda_i^{(j)})}_{i \in \mathcal{I}}$ such that
+	\begin{align*}
+		c_j = \sum_{i \in \mathcal{R}} \lambda_i^{(j)} x_i.
+	\end{align*}
+\end{theorem}
+
+\begin{proof}
+	Consider the \textit{Vandermonde} matrix for the elements ${(x_i)}_{i \in
+	\mathcal{R}}$, which is defined as
+	\begin{align*}
+		V =
+		\begin{pmatrix}
+			1 & i_1 & i_1^2 & \cdots & i_1^t\\
+			1 & i_2 & i_2^2 & \cdots & i_2^t\\
+			1 & i_3 & i_3^2 & \cdots & i_3^t\\
+			\vdots & \vdots & \vdots & \ddots & \vdots\\
+			1 & i_k & i_k^2 & \cdots & i_k^t\\
+		\end{pmatrix},
+	\end{align*}
+	where $\mathcal{R} = \{i_1, \ldots, i_k\}$. If we define $s$ to be the
+	$k$-vector of shares ${(x_i)}_{i \in \mathcal{R}}$, and $c$ to be the $k$
+	vector of coefficients, then by the way secret sharing is defined we have
+	the relationship
+	\begin{align*}
+		Vc = s.
+	\end{align*}
+	It is well known that the determinant of the Vandermonde matrix $V$ above
+	is
+	\begin{align*}
+		\det(V) = \prod_{1 \le p < q \le k} (i_p - i_q),
+	\end{align*}
+	and is hence non-zero, if $i_p \ne i_q$ for all $p,q \in \mathcal{R}$, $p
+	\ne q$, which in our case is true. This means that $V$ is invertible, and
+	so we may write
+	\begin{align*}
+		c = V^{-1}s.
+	\end{align*}
+	We can thus complete the proof by defining $\lambda_i^{(j)}$ as the $(j,
+	i)$ element of $V^{-1}$.
+\end{proof}
+
+\subsection{Discrete Logarithm Assumption}
+
+We define here a computational assumption that will be relevant to our random
+key pair generation protocol. The assumption is a standard and common one from
+the literature: that computing the discrete logarithm is hard. This is
+formalised for our specific context as follows.
+
+\begin{assumption}[Discrete Logarithm]\label{ass:dlog}
+	Let $p$ be a prime such that $p \ge 2^b$ where $b \in \N$. Let $\G$ be a
+	group of prime order $p$ with generator $g$ and let $\F$ be the associated
+	finite field of integers modulo $p$. Then for every Turing machine $T$ and
+	uniformly random field element $x \in \F$, $\P(T(\mathbb{G}, g, g^x) = x)$
+	is negligible.
+\end{assumption}
+
+\section{Security}
+
+\newcommand{\exec}[4]{\textup{\texttt{EXEC}}_{#1, #2} (#3, #4)}
+\newcommand{\execD}{\exec{\proto}{\mathcal{A}}{x}{z}}
+
+\newcommand{\ideal}[4]{\textup{\texttt{IDEAL}}_{#1, #2} (#3, #4)}
+\newcommand{\idealD}{\ideal{\proto}{\mathcal{S}}{x}{z}}
+
+In this section we will outline the security model and definitions that we will
+use to prove that the presented protocols are secure.
+
+The notion of security we will use is that of Canetti~\cite{canetti_2000},
+which is based on the idea of comparing a designed protocol to an ideal case
+that is secure by definition. More precisely, we consider an $n$-party function
+$f$ that takes as input the inputs of each of the parties, and gives as output
+the outputs for all of the parties; this defines what functionality we want our
+protocol to achieve. Then, we define a protocol $\pi$ which we want to
+``securely'' realise $f$, and prove that it is secure by comparing the
+``real-life model'' in the presence of an adversary $\mathcal{A}$ and the
+``ideal case'':
+\begin{itemize}
+	\item \textit{Real-life model}: The corrupted parties are controlled by the
+		adversary $\mathcal{A}$, which learns their identities and inputs. The
+		protocol $\pi$ proceeds in rounds, where in each round uncorrupted
+		parties first follow $\pi$ correctly and send any messages they need
+		to. Next, $\mathcal{A}$ receives any messages destined for corrupted
+		parties, and then decides what messages the corrupted parties should
+		send in that round. This process repeats each round until $\pi$ has
+		completed execution. The parties then produce their output; uncorrupted
+		parties output their true output, while corrupted parties output a
+		special symbol $\bot$ to indicate that they were corrupted.
+
+	\item \textit{Ideal case}: All parties hand their inputs for the protocol
+		to an incorruptible trusted party $T$ which computes the ideal
+		functionality $f$ and then hands each party their respective results.
+		Each party produces their respective output as in the real-life model.
+\end{itemize}
+See the paper for more details~\cite{canetti_2000}. An important property to
+note is that the adversary gets to see the honest parties' message in a given
+round before deciding its own; this property is called \textit{rushing}. Note
+also that this model is synchronous because it proceeds in will defined rounds.
+However, we will discuss later that the synchronicity implied here is perhaps
+stronger than what we actually achieve with the presented protocols.
+
+If for each $\mathcal{A}$ that operates in the real-life model, we can
+construct an adversary $\mathcal{S}$ in the ideal case such that for the random
+variable that represents the information gathered by $\mathcal{A}$ and the
+outputs of the parties, $\mathcal{S}$ can construct an output with the same
+distribution, then we will say that the protocol $\pi$ is secure. Canetti also
+proves that this security definition enjoys a \textit{composability} property,
+in that if a protocol $\pi$ uses a secure subprotocol $\pi'$ as part of its
+execution, then to prove $\pi$ is secure one need only prove this when $\pi'$
+has been substituted by the associated $n$-party functionality $f$.
+Additionally, in this \paper{} we will consider \textit{active} adversaries,
+which means that they can deviate arbitrarily from the protocol and send
+arbitrary messages. Before the start of the protocol, the adversary (this
+applies to both $\mathcal{A}$ and $\mathcal{S}$) may also modify the inputs of
+the corrupted parties in any way. We also consider computationally bounded
+adversaries that cannot compute discrete logarithms, as in
+Assumption~\ref{ass:dlog}.
+
+The random variable corresponding to the execution of the protocol $\pi$ in the
+presence of an adversary $\mathcal{A}$ is defined as follows.
+
+\begin{definition}
+	Let $\pi$ be an $n$-party protocol and let $\mathcal{A}$ be a $t$-limited
+	adversary. Let $x$ be some input for the parties, and $z$ be some auxiliary
+	input. Define $\exec{\pi}{\mathcal{A}}{x}{z}$ to be the random variable
+	that is the messages that the corrupt parties send and receive during the
+	execution of $\pi$, the auxiliary input and the outputs of each party
+	$P_i$.
+\end{definition}
+
+The auxiliary input $z$ is used to prove the composability of the security
+definition. It represents a possible state for $\mathcal{A}$ that might occur
+due to the protocol being a subprotocol of a larger protocol, and so can
+include information about previous executions up to that point. Similarly, we
+define the random variable that corresponds to the execution in the ideal case
+with and adversary $\mathcal{S}$.
+
+\begin{definition}
+	Let $f$ be an $n$-party function and let $\mathcal{S}$ be an adversary. Let
+	$x$ be some input for the parties, and $z$ be some auxiliary input. Define
+	$\ideal{f}{\mathcal{S}}{x}{z}$ to be the random variable that is the output
+	of $\mathcal{S}$ along with the outputs of each party $P_i$ after an
+	execution with the trusted party $T$ evaluating $f$ in the ideal case.
+\end{definition}
+
+We will often refer to $\exec{\pi}{\mathcal{A}}{x}{z}$ (or sometimes all parts
+of it excluding the outputs of the parties) as the \textit{view} of
+$\mathcal{A}$ running $\pi$ with inputs $x$ and $z$, as this is what
+$\mathcal{A}$ ``sees'' during execution; particularly the messages. Similarly,
+we often call the output of $\mathcal{S}$ the \textit{simulated view}.
+
+\begin{definition}\label{def:sec}
+	Let $f$ be an $n$-party function and let $\pi$ be an $n$-party protocol. We
+	say that $\pi$ $t$-securely evaluates $f$ if for any nonadaptive and
+	$t$-limited adversary $\mathcal{A}$ there exists a nonadaptive adversary
+	$S$ with running time polynomial in the running time of $\mathcal{A}$ such
+	that for all $x$ and $z$
+	\begin{align*}
+		\exec{\pi}{\mathcal{A}}{x}{z} \eqd \ideal{f}{\mathcal{S}}{x}{z}.
+	\end{align*}
+\end{definition}
+
+\begin{remark}
+	While the auxiliary input $z$ serves an important role in allowing for the
+	security definition to be composable, its presence in the individual
+	security proofs is not needed; since $\mathcal{S}$ is given $z$, it is
+	trivial for it to include it in its output. For this reason, we do not
+	mention the auxiliary input in our security proofs.
+\end{remark}
+
+\begin{remark}
+	The definition presented is a simplified version of the one given in
+	Canetti's paper. This is because the latter is made to be general over the
+	different possible levels of security: \textit{perfect} security,
+	\textit{statistical} security and \textit{computational} security. It is
+	also designed to be general over possibly infinite domains for the inputs.
+	However, in our case we only consider finite domains and perfect security,
+	so the definition is suitably simplified. Note that even though a protocol
+	may use a subprotocol that has only statistical or computation security, we
+	can still prove it is secure using perfect security, since perfect security
+	implies statistical security, which in turn implies computational security.
+	For the protocols in this \paper{} we will prove perfect security since it
+	is both the strongest result but also more convenient.
+\end{remark}
+
+\section{Cryptographic Primitives}
+
+In this section we briefly outline some cryptographic primitives that will be
+used in our SMPC protocols.
+
+\subsection{Public Key Encryption}
+
+\newcommand{\encrypt}[2]{E_{#1}\left(#2\right)}
+
+For some protocols, we will assume the existence of a public key encryption
+system. The precise security definition of the encryption is not important for
+this context. We will denote the output of encryption of a message $m$ using a
+public key $\kappa$ by $\encrypt{\kappa}{m}$.
+
+\subsection{Zero Knowledge Proofs}
+
+We will make use of general purpose zero knowledge (ZK) proofs in some of our
+protocols. In some cases, we will require that these proofs have the
+\textit{perfect zero knowledge} property, which is summarised in the following
+definition by Goldreich~\cite{goldreich_2001}.
+
+\begin{definition}[Perfect Zero Knowledge]
+	Let $(P, V)$ be an interactive proof system for some language $L$. We say
+	that $(P, V)$ is \textbf{Perfect Zero Knowledge} if for every probabilistic
+	polynomial time interactive Turing machine $V^\ast$ there exists a
+	probabilistic polynomial time algorithm $M^\ast$ such that for every $x \in
+	L$ the following two conditions hold:
+
+	\begin{enumerate}
+		\item $M^\ast$ succeeds with probability at least $\frac{1}{2}$; i.e.\
+			if we denote a failure by the output of $\bot$, then
+			\begin{align*}
+				\P(M^\ast(x) = \bot) \le \frac{1}{2}.
+			\end{align*}
+
+		\item Let $X$ be the random variable that is the output of $V^\ast$
+			after interacting with the interactive machine $P$ on common input
+			$x$, and let $m^\ast(x)$ be the random variable that is exactly
+			$M^\ast(x)$ but conditioned on the fact that $M^\ast(x) \ne \bot$.
+			Then we require that these two random variables are equally
+			distributed, i.e.
+			\begin{align*}
+				m^\ast(x) \eqd X.
+			\end{align*}
+	\end{enumerate}
+\end{definition}
+
+\subsection{Consensus}
+
+\newcommand{\consrng}[2]{\rho_\texttt{RNG}^{#1, #2}}
+
+For some of the protocols described in this \paper{}, we will make use of a
+consensus algorithm. A consensus algorithm allows a network of
+\textit{processes}, some of which may be \textit{faulty}, to arrive at a joint
+decision value. The key properties of a consensus algorithm that we will
+consider are those defined Buchman et~al.~\cite{buchman_2018}.
+
+\begin{enumerate}
+	\item \textit{Termination}: Every nonfaulty process eventually decides on a
+		value.
+	\item \textit{Agreement}: No two nonfaulty processes decide on different
+		values.
+	\item \textit{Validity}: A decided value is valid, i.e., it satisfies the
+		predefined predicate denoted $\texttt{valid}()$.
+\end{enumerate}
+
+Note that it is not explicitly stated, but it is necessary for the function
+$\texttt{valid}$ to be global in the sense that every nonfaulty process
+computes the same result for $\texttt{valid}(v)$. This is important to keep in
+mind for the following, in which some decision values will contain data
+encrypted for specific players, which of course means only those specific
+players can decrypt this data and hence the associated plaintext should not be
+used as a part of the checks in $\texttt{valid}$.
+
+We define a specific protocol that uses consensus when generating global
+(secret shared) random numbers, which we denote $\consrng{n}{k}$. It is defined
+as follows. Let the parties participating in the protocol be ${\{P_i\}}_{i \in
+\mathcal{I}}$, such that each party $P_i$ has a public and private keypair
+where the public key is denoted $\kappa_i$. Each party $P_i$ has input
+$c_0^{(i)}, \ldots, c_{t-1}^{(i)}$, which are the coefficients of a polynomial
+that is to be used for a threshold $t$ sharing of the number $c_0^{(i)} \in
+\F$. They then do the following to construct their input for a consensus
+protocol $\rho$:
+
+\begin{enumerate}
+	\item Create $n$ shares $r_1^{(i)}, \ldots, r_n^{(i)}$ from the
+		coefficients $c_0^{(i)}, \ldots, c_{t-1}^{(i)}$.
+	\item Obtain the set of encrypted values $e_i = \{e_1^{(i)},
+		\ldots, e_n^{(i)}\}$, where $e_j^{(i)} =
+		\encrypt{\kappa_j}{r_j^{(j)}}$.
+	\item Create a ZK proof $\zeta_i$ that asserts the following:
+		\begin{itemize}
+			\item $e_j^{(i)} = \encrypt{\kappa_j}{r_j^{(i)}}$ for all
+				$j \in \mathcal{I}$.
+			\item The values $r_1^{(i)}, \ldots, r_n^{(i)}$ constitute
+				a valid and consistent sharing of some value in $\F$ (in this
+				case, that value is $c_0^{(i)}$).
+		\end{itemize}
+\end{enumerate}
+
+A possible decision value for $\rho$ is a set ${\{(e_i, \zeta_i)\}}_{i \in I}$
+where $I \subset \mathcal{I}$. The predicate is $\texttt{valid}_\texttt{RNG}$,
+which is true precisely when $|I| > t$ and $\texttt{verify}(\zeta_i) = 1$ for
+all $i \in I$. The output for each party is the decrypted set of shares which
+were encrypted for their public key; namely the output for party $P_i$ is
+${(r_i^{(j)})}_{j \in I}$.
+
+Part of the use of the ZK proofs here is to achieve the goal of having
+\textit{verifiable secret sharing}, for which the more common solution is to
+use more specialised (and hence usually more efficient) techniques such as that
+of Feldman~\cite{feldman_1987} or Pedersen~\cite{pedersen_1991}. The reason
+that these solutions were not used is to weaken the synchronicity requirements
+but also reduce the number of rounds of communication. Using the standard
+solutions allows each party to identify when a dealer has not consistently
+shared their secret, but each party needs to be aware of this and hence they
+need to agree on dealers that are faulty. This usually requires additional
+rounds of broadcasting complaints (if there are any), and often doing so using
+a secure broadcast channel%
+\footnote{%
+	In this context, \textit{secure broadcast} means secure in the sense of our
+	security definitions, and not in the intuitive encrypted messaging sense; a
+	secure broadcast can be thought of as a protocol where each honest party
+	outputs the same value. This is obviously not achieved by a na\"{\i}ve
+	approach of simply sending the message to everyone, as the adversary may
+	send different messages to different parties.
+}.
+Using the more powerful ZK proofs, in which it is proved that all of the
+encrypted shares are consistent, allows each party to check that every other
+parties' share is correct in the course of the consensus algorithm. This means
+that upon achieving consensus, no further coordinating or complaint
+broadcasting is needed as the only decision values that are selected are those
+for which the required threshold of parties agreed that $\texttt{valid}$
+returned true. Using $\consrng{n}{k}$ thus only introduces the synchronicity
+required for the consensus algorithm, which for example in the case of
+Tendermint~\cite{buchman_2018} is only partial synchronicity.
+
+This consensus protocol will be used as a subprotocol for some of our SMPC
+primitives, and so we will provide some brief justification as to why they can
+be used securely. Recall that the two key properties that
+definition~\ref{def:sec} captures are secrecy and correctness. The former
+requires that the messages do not leak any information, and we can see that
+this is the case given that the proposed values only contain encrypted data, ZK
+proofs and public keys, all of which do not leak information given appropriate
+assumptions. The latter requires that the adversary cannot influence the
+output. This is not strictly attained, for example when using
+Tendermint~\cite{buchman_2018} consensus a party that is controlled by the
+adversary can propose a block and hence influence what is in it, but to counter
+this we will just combine the consensus protocol with other protocols to arrive
+at adequate security for the larger protocol that uses consensus. Regarding the
+computation model, we require that a subprotocol instance can behave like a
+``round'' and have a definite completion time. This is ensured for protocols
+that want to use consensus by the termination property of the consensus
+protocol.
+
+\section{SMPC Primitives}
+
+In this section we will define the primitives which constitute our SMPC
+protocols and prove their security. It is clear that the security model
+trivially applies when a protocol is ``local''; i.e.\ does not involve any
+exchange of messages. This means that we need only consider proofs of security
+for those protocols that involve sending messages. In our case, these protocols
+are open (Section~\ref{sec:open}), random number generation
+(Section~\ref{sec:rng}), random zero generation (Section~\ref{sec:rzg}), and
+random keypair generation (Section~\ref{sec:rkpg}).
+
+\subsection{Open}\label{sec:open}
+
+At some points during a computation on shared values, and almost certainly at
+the end of a larger protocol, we will want to reveal the secret corresponding
+to the underlying shares. We call this revealing operation ``Opening''.
+Probably the most obvious ideal functionality for this would be defined as
+follows: $f$ takes as input the shares of the secret from each party and gives
+as output the corresponding secret $s$ to each party. However, if we were to
+try to achieve this with the simplest and most obvious protocol, everyone
+broadcasting their share and then reconstructing, we would not be able to prove
+security in the framework we are using because any simulator, knowing only the
+corrupted shares and the secret, would not be able to produce the shares of the
+honest parties which it would have to as these are messages that are sent
+during the protocol. The interpretation of this is clear: this protocol is not
+secure because it leaks private information (the input shares) from the honest
+parties, or alternatively, because the ideal functionality specifies that this
+private information is not revealed. The two solutions for these two
+perspectives leads to two different protocols which warrant use in their own
+contexts.
+
+First, from the perspective that the simple broadcast protocol should not
+reveal the input shares, the solution is to improve the protocol so that this
+information isn't revealed. One way that this can be achieved is by first
+generating a random $k$-sharing of $0 \in \F$ and adding that to the shares
+before broadcasting them; now the messages sent during the protocol are for a
+\textit{random} sharing of the secret, as opposed to the specific sharing that
+the parties started the protocol with, and a simulator can now generate these
+messages with the right distribution knowing only the secret. Second, from the
+perspective that the ideal functionality is too restrictive, we can modify it
+to also output the shares themselves along with the secret; a simulator for
+this ideal functionality can now easily produce an appropriate view for the
+simple broadcast protocol.
+
+We can see that in either of the above cases the key difference is whether or
+not the original shares are considered safe to reveal. Often they are safe to
+reveal, but there are cases where they are not. One example in which they are
+not is having $k$-sharings of two private values $a, b \in \F$, and each party
+multiplies their shares locally to get a $2k$-sharing of $ab$ and then opening
+this value. While it may be ``safe'' to reveal $ab$ (e.g.\ if $a$ is a secret
+but $b$ is an unknown uniformly random value), it is well known that this $2k$
+sharing is defined by a degree $2k - 1$ polynomial that is not uniformly random
+(an easy reason that this is the case is that given it is the product of two
+polynomials, it can't possibly be irreducible), and in fact exhibits enough
+structure that knowing the shares, one can often easily determine both $a$ and
+$b$ individually.
+
+With the above considerations in mind, we will define two protocols for open,
+one for each of the cases. In both cases, we will use a Reed-Solomon (RS)
+decoding technique, such as Berlekamp-Welch~\cite{welch_1986} or
+Gao's~\cite{gao_2003}, to remain fault tolerant in the presence of corrupt
+parties broadcasting incorrect shares. For an $(n, k)$ RS code (i.e. $n, k$
+Shamir secret sharing) these algorithms are able to detect when there are up to
+$d = n - k + 1$ errors and correct up to $\lfloor \frac{d}{2} \rfloor$ errors%
+\footnote{%
+	Note that these algorithms are also able to locate the errors when they are
+	corrected, which in our context means that we would be able to identify
+	corrupt nodes.
+}.
+Notice that RS decoding allows us to recover the underlying polynomial, and so
+this means that we not only obtain the secret for our sharing but also all of
+the other shares of every other party.
+
+The protocol implementing the basic ideal functionality (that outputs the
+secret as well as all of the input shares) $\fOpen{n,k}$ is denoted by
+$\piOpen{n,k}$ and is defined as follows.
+
+\begin{enumerate}
+	\item Each party $P_i$ broadcasts their input share $x_i$.
+
+	\item Each party performs the reconstruction of the secret using a suitable
+		RS decoding algorithm and outputs the result, along with the other
+		reconstructed shares.
+\end{enumerate}
+
+\begin{theorem}
+	Let $t \le \frac{n - k + 1}{2}$. Then the protocol $\piOpen{n,k}$
+	$t$-securely evaluates $\fOpen{n,k}$.
+\end{theorem}
+
+\begin{proof}
+	Since the only messages sent are the input shares and these are included in
+	the output of the trusted party, the proof is trivial. The only thing to
+	note is that the output needs to include the input shares of all parties,
+	including those corrupted parties that may broadcast arbitrary values. This
+	is easily overcome by using an RS decoding technique and noting that the
+	restriction on $t$ ensures that it will always be possible to reconstruct
+	their shares.
+\end{proof}
+
+The protocol implementing the stricter ideal functionality $\fSOpen{n,k}$ is
+denoted by $\piSOpen{n,k}$ and is the same as the simple version, except before
+revealing shares for reconstruction, the sharing is randomised by adding a
+random sharing of $0 \in \F$ first. The protocol for generating this
+randomising sharing, $\piRZG{n,k}$, is defined in Section~\ref{sec:rzg}. The
+protocol $\piSOpen{n,k}$ is defined as follows.
+
+\begin{enumerate}
+	\item The parties participate in $\piRZG{n,k}$ to get a share of zero
+		$z_i$.
+
+	\item Each party $P_i$ broadcasts their corresponding share $x_i + z_i$.
+
+	\item Each party performs the reconstruction of the secret using a suitable
+		RS decoding algorithm and outputs the result.
+\end{enumerate}
+
+\begin{remark}\label{rem:openSync}
+	We make a note here on synchronicity regarding the use of a RS decoding
+	technique. The main feature of the security definition that relates to
+	synchronicity is the fact that the protocol proceeds in rounds and each
+	round has to be completed before moving on to the next. This would either
+	mean waiting for \textit{all} messages from other players, or using a
+	timeout after which any messages that have not arrived are given some
+	default value to be used instead. However, these alternatives need not be
+	used for the final round of each open protocol in which each party sends
+	its share to every other party. This is because as soon as a party has at
+	least $n - \lfloor \frac{d}{2} \rfloor$ shares, the decoding algorithm will
+	be able to successfully recover the secret, setting the yet to be received
+	messages as any value. This means that if there are no more than $\lfloor
+	\frac{d}{2} \rfloor$ adversaries (and this category also includes
+	offline/unresponsive players), then the round is guaranteed to terminate
+	according to any termination assumptions of \textit{only the honest
+	players}. This means that in practice we will not need to wait for all
+	messages (which is not lively) and also will have no need for timeouts.
+
+	Concretely, the following is a way in which the honest parties can be sure
+	to terminate without having to have synchronised clocks or use timeouts.
+	\begin{enumerate}
+		\item Wait until $n - \lfloor \frac{d}{2} \rfloor$ shares have been
+			received. This is guaranteed to happen as there are at least this
+			many honest parties.
+		\item Starting from the previous step and repeating on every new share
+			until a reconstruction is possible: set the shares of the parties
+			for which no shares have yet been received as $0$, and run the
+			reconstruction algorithm.
+	\end{enumerate}
+	Repeating the last step will eventually terminate with the correct value.
+	First, notice that it will never yield an incorrect value. This is because
+	no reconstructions are attempted until there are at least $n - \lfloor
+	\frac{d}{2} \rfloor$ values, which means at most $\lfloor \frac{d}{2}
+	\rfloor$ of them will be from corrupt parties, and therefore in total there
+	will be at most $d$ incorrect shares (including the ones that have not yet
+	been received). Thus the RS decoding algorithm will always be able to
+	detect that there are errors. To see that it will always terminate, we need
+	only realise that as soon as we have $n - \lfloor \frac{d}{2} \rfloor$
+	correct values the decoding will succeed, and this will eventually happen
+	because there are at least this many honest parties.
+\end{remark}
+
+\begin{remark}
+	When $k = \frac{2n}{3}$, which occurs during multiplication of two
+	$k$-sharings when $k = \frac{n}{3}$, we see that this places the security
+	requirement at $t < \frac{n}{6}$ (but the protocol will still be safe with
+	abort for up to $t < \frac{n}{3}$). We could achieve a more relaxed $t <
+	\frac{n}{3}$ requirement if we augment the opening process with ZK proofs
+	that the shares a player broadcasts are correct. In this case, as soon as
+	$k$ shares with valid proofs have been received, it is safe to use this
+	subset to reconstruct the secret and proceed.
+\end{remark}
+
+\begin{theorem}
+	Let $t$ be such that both $t \le \frac{n - k + 1}{2}$ and $t < k - 1$. Then
+	the protocol $\piSOpen{n,k}$ $t$-securely evaluates $\fSOpen{n,k}$.
+\end{theorem}
+
+\begin{remark}
+	Note that we require $t < k - 1$ instead of the usual $k$. This is because
+	when we open, every party learns the secret, which we recall is the share
+	corresponding to index $0 \in \F$. With this extra share, the adversary can
+	actually reconstruct all of the original shares (if we have the worst case
+	$t = k - 1$), which we want to avoid.
+	% TODO: Mention subtlety about SSS always being secure no matter the value
+	% of t?
+\end{remark}
+
+\begin{proof}
+	\newcommand{\proto}{\piSOpen{n,k}}
+
+	Let an adversary $\mathcal{A}$ be given. Let input $x$ and auxiliary input
+	$z$ be given. We will outline briefly our proof strategy, as we will also
+	use it in other proofs. By definition, our end goal is to construct
+	$\mathcal{S}$ such that
+	\begin{align*}
+		\execD \eqd \idealD
+	\end{align*}
+	We could try to compare these random variables directly, but in general
+	this is a little cumbersome and complicated, as many elements of these
+	random variables will have dependencies on each other. In addition, the
+	view for $\mathcal{S}$ will have to be constructed by reverse-engineering
+	based on the output of the trusted party, which makes the equality of the
+	distributions less clear. To try to make things easier, we will identify
+	the key source of randomness that determines these views, and a
+	deterministic function that maps this to the view. For example, if a view
+	contains all of the shares of some $k$-sharing, instead of considering the
+	shares directly, we could use only the $k$ coefficients that determine the
+	sharing, and then we can map these deterministically to the shares.
+	Specifically, we seek random variables $X$ and $Y$ (the simplified
+	randomness) and a deterministic function $h$ such that $h(X) \eqd \execD$
+	and $h(Y) \eqd \idealD$. Then, we will show that $X \eqd Y$, at which point
+	we may apply Theorem~\ref{thm:eqd_det} to arrive at our desired result.
+
+	In our current case, we begin by characterising $\execD$. The first
+	messages that $\mathcal{A}$ receives are the $t$ output messages
+	${(z_i)}_{i \in \mathcal{I}_c}$ from $\piRZG{n, k}$. The next part of the
+	view comes from the $n - t$ messages ${(y_i)}_{i \in \mathcal{I}_h}$ that
+	the uncorrupted parties send in the broadcast round. Next, $\mathcal{A}$
+	sends its $t$ messages ${(m_i)}_{i \in \mathcal{I}_c}$ in the broadcast
+	round. The final part of $\execD$ is the outputs of the parties; this is
+	$t$ $\bot$s that are output by the corrupted parties and $n-t$ elements of
+	$\F$ (that should all be the same and equal to the secret corresponding to
+	the sharing $x$). We can thus write
+	\begin{align*}
+		\execD
+		=
+		\left(
+			{(z_i)}_{i \in \mathcal{I}_c},
+			{(y_i)}_{i \in \mathcal{I}_h},
+			{(m_i)}_{i \in \mathcal{I}_c},
+			s'
+		\right),
+	\end{align*}
+	where for simplicity we ignore the outputs of the corrupted parties and
+	only include one field element $s'$ to represent the output of the honest
+	parties.
+
+	The ``key randomness'' for $\execD$ as discussed at the beginning of this
+	proof is captured by the random variable
+	\begin{align*}
+		X
+		=
+		\left(
+			{(c_i)}_{i \in \seqZ{k-1}},
+			{(m_i)}_{i \in \mathcal{I}_c}
+		\right),
+	\end{align*}
+	where ${(c_i)}_{i \in \seqZ{k-1}}$ are independently and uniformly randomly
+	distributed elements of $\F$, representing the coefficients for the sharing
+	${(z_i)}_{i \in \mathcal{I}}$ of zero, and ${(m_i)}_{i \in \mathcal{I}_c}$
+	are the messages that $\mathcal{A}$ would send in the broadcast round. We
+	describe the latter more specifically. The messages that $\mathcal{A}$ will
+	send in any given round depends on its random tape and all of the messages
+	it has received up to that point. The random tape is picked uniformly
+	randomly, so we need only consider the messages it has received up until
+	the broadcast round; these are its shares of zero and the randomised shares
+	sent by the honest parties. We will assume that the shares of zero come
+	from a uniformly random sharing of zero, and that the shares received from
+	the honest parties come from a uniformly random sharing of $x$, the secret
+	corresponding to the input shares. If we let the coefficients that define
+	the input sharing be $c_x \in \F^k$, then we can define our deterministic
+	function $h$ by the mapping
+	\begin{align*}
+		(c, m)
+		\mapsto
+		\left(
+			\spl(\mathcal{I}_c, c),
+			\spl(\mathcal{I}_h, c + c_x),
+			m,
+			s
+		\right),
+	\end{align*}
+	where we interpret $c + c_x$ to be element-wise addition.
+
+	We want to show that $h(X) \eqd \execD$. As previously mentioned, the third
+	element (the messages sent by $\mathcal{A}$) depend only on the previous
+	two elements, as these are the messages received up until the broadcast
+	round. This means that if we ensure that these first two elements have the
+	correct distribution, the third will too. Now, notice that the final
+	element of $\execD$ will be fixed and equal to $s$. This is because by
+	definition and the assumptions on $t$ the honest parties will hold at least
+	$\frac{n + k - 1}{2}$ correct shares and so can always correctly
+	reconstruct $s$. Since this final element is fixed for the given inputs,
+	and in $h$ is defined to be that same fixed value $s$, the final element
+	will always be correct. Finally, we notice that in fact the first element
+	is a deterministic function of the second element. This is because since
+	$|\mathcal{I}_h| \ge k$ we know that ${(y_i)}_{i \in \mathcal{I}_h}$
+	completely determines the rest of the shares ${(y_i)}_{i \in
+	\mathcal{I}_c}$ and the random shares of zero satisfy $z_i = y_i - x_i$ for
+	all $i \in \mathcal{I}_c$, where $x = {(x_i)}_{i \in \mathcal{I}}$. Thus we
+	consider only the second element. In $\execD$, this element is distributed
+	as a part of a uniformly random sharing of $s$. This follows from the fact
+	that the output shares of $\piRZG{n,k}$ will be a uniformly random sharing
+	of zero, and Corollary~\ref{cor:unif}. In $h(X)$, this element will also
+	have this distribution for exactly the same reason; $c$ is distributed in
+	the same way as the coefficients of a uniformly random sharing of zero. We
+	therefore conclude that $h(X) \eqd \execD$.
+
+	With this result established, we now seek to construct $\mathcal{S}$ and a
+	random variable $Y$ such that $h(Y) \eqd \idealD$ and $X \eqd Y$. Define
+	the simulator adversary $\mathcal{S}$ as follows.
+
+	\begin{enumerate}
+		\item\label{enum:openGen} Let the output from the trusted party be
+			$s$ (by definition it will always be the secret corresponding to
+			the sharing $x$). $\mathcal{S}$ begins by constructing a random
+			sharing ${(y_i)}_{i \in \mathcal{I}}$ of $s$.
+
+		\item $\mathcal{S}$ now defines
+			\begin{align*}
+				z_i = y_i - x_i \quad \forall i \in \mathcal{I}_c.
+			\end{align*}
+
+		\item\label{enum:openMsg} $\mathcal{S}$ now runs $\mathcal{A}$ after
+			giving it ${(z_i)}_{i \in \mathcal{I}_h}$ and ${(y_i)}_{i \in
+			\mathcal{I}_h}$ to get the messages ${(m_i)}_{i \in \mathcal{I}_c}$
+			that $\mathcal{A}$ sends in the broadcast round.
+
+		\item $\mathcal{S}$ then outputs
+			\begin{align*}
+				{(z_i)}_{i \in \mathcal{I}_c},
+				{(m_i)}_{i \in \mathcal{I}_c},
+				{(y_i)}_{i \in \mathcal{I}_h}
+			\end{align*}
+			as the generated view.
+	\end{enumerate}
+
+	We now aim to construct $Y$. Let ${(y_i)}_{i \in \mathcal{I}}$ and
+	${(m_i)}_{i \in \mathcal{I}_c}$ be distributed as in the description of
+	$\mathcal{S}$. Let the coefficients corresponding to this sharing be $c_y =
+	{(c_i^{(y)})}_{i \in \seqZ{k-1}}$ and let $c_x = {(c_i^{(x)})}_{i \in
+	\seqZ{k-1}}$, and define the coefficients $c = {(c_i)}_{i \in \seqZ{k-1}}$
+	by
+	\begin{align}\label{eq:sopenCoeff}
+		c_i = c_i^{(y)} - c_i^{(x)} \quad \forall i \in \seqZ{k-1}.
+	\end{align}
+	We then define
+	\begin{align*}
+		Y
+		=
+		\left(
+			{(c_i)}_{i \in \seqZ{k-1}},
+			{(m_i)}_{i \in \mathcal{I}_c}
+		\right).
+	\end{align*}
+	With $Y$ defined, our next step is to show that $h(Y) \eqd \idealD$. The
+	same argument as before shows that to do this we need only consider the
+	second element of these distributions. For this element, the honest shares
+	${(y_i)}_{i \in \mathcal{I}_c}$, these clearly have the same distribution
+	since $c + c_x = c_y$ by definition and $\spl(\mathcal{I}_h, c_y)$ has the
+	same distribution as the corresponding element in $\idealD$ also by
+	definition. Thus $h(Y) \eqd \idealD$.
+
+	The final step for our proof is to show that $X \eqd Y$. The first element
+	in $X$ is distributed as $k-1$ independently and uniformly randomly
+	distributed elements of $\F$ (the coefficient $c_0$ is $0 \in \F$ as it is
+	a sharing of zero). In $Y$ the distribution is the same, which follows from
+	Eq.~\eqref{eq:sopenCoeff}, Corollary~\ref{cor:unif} and the fact that each
+	$c_i^{(y)}$ is independently and uniformly distributed for each $i \in
+	\seq{k-1}$, and also the fact that $c_0^{(y)} = c_0^{(x)}$. Finally, the
+	second elements have the same distribution due to their construction and
+	the fact that they otherwise only depend on the first element.
+\end{proof}
+
+\subsubsection{Directed Open}
+
+The protocols $\piOpen{n,k}$ and $\piSOpen{n,k}$ reveal the shared secret to
+all players. However, sometimes we will only want to reveal the secret to a
+specific player. In this case we use a \textit{directed open} protocol. The
+only difference in this case is that instead of sending the shares to everyone,
+each player sends their share to the specified player only. We denote the
+directed version of $\piOpen{n,k}$ as $\piDOpen{n,k,i}$ and the directed
+version of $\piSOpen{n,k}$ as $\piSDOpen{n,k,i}$, where in each case $i \in
+\mathcal{I}$ is the index of the player which outputs the secret. The ideal
+functionalities $\fDOpen{n,k,i}$ and $\fSDOpen{n,k,i}$ are also defined
+correspondingly.
+
+The security of these directed open protocols is summarised in the following
+two theorems; they enjoy the same security as their undirected counterparts.
+The proofs are almost identical and so are omitted here.
+
+\begin{theorem}
+	Let $t \le \frac{n - k + 1}{2}$. Then the protocol $\piDOpen{n,k}$
+	$t$-securely evaluates $\fDOpen{n,k}$.
+\end{theorem}
+
+\begin{theorem}
+	Let $t$ be such that both $t \le \frac{n - k + 1}{2}$ and $t < k - 1$. Then
+	the protocol $\piSDOpen{n,k}$ $t$-securely evaluates $\fSDOpen{n,k}$.
+\end{theorem}
+
+\subsection{Random Number Generation}\label{sec:rng}
+
+Generating shares of a uniformly distributed (but unknown to all parties)
+random number is key for many SMPC protocols. In this section we will describe
+how we achieve this and prove the security of our protocol. Security requires
+that the output cannot be influenced, and to construct a protocol that meets
+this requirement we will first create a protocol that does not meet all of the
+requirements for our security framework. We will then utilise this in creating
+a fully secure protocol.
+
+\subsubsection{Biased RNG}
+
+In biased RNG, the adversary has some influence over what shares it outputs
+after a run of the protocol. Importantly however, the secret will still be
+uniformly distributed; it's just the sharing that has been biased. This arises
+primarily because the adversary is rushing and so gets to see the shares that
+the other parties are going to contribute first before constructing its own.
+The common solution to this problem is to have a first round in which all
+players commit to their sharing, and then in the next round everyone decommits
+to their shares. The reason that we do not use this strategy comes back to
+synchronicity assumptions. After a party receives the commitment to a share, in
+the decommitment round it will either need to wait for the decommitment
+message, or have some sort of timeout. Further, there will need to be
+additional communication because the parties will need to need to agree on
+which parties published correct decommitments. As usual, we try to avoid this
+situation, and instead aim for a protocol that can move on to the next step
+before receiving (or deciding it didn't receive) a message from every party.
+
+As previously stated, our first biased RNG protocol does not meet all of the
+security requirements for the desired RNG ideal functionality (outputting a
+random sharing of a random value). One way to overcome this could be to modify
+the ideal functionality so that it weakened to the point that our biased
+protocol securely evaluates it. However, in this case it is not very clear how
+to easily do this, so we take an alternative approach in which we will instead
+define the key properties that our biased RNG protocol needs to satisfy and
+prove that these hold for our designed protocol. This means that when we seek
+to use this protocol as a subprotocol, we will need to use it explicitly
+instead of being able to substitute it with a call to a trusted party. When
+analysing the protocol, we continue to use the execution model as described in
+the composable security framework; we operate in the presence of a $t$-limited,
+active and rushing adversary $\mathcal{A}$ and follow the protocol by
+proceeding in rounds. We are interested in the following properties.
+
+\begin{itemize}
+	\item \textit{Agreement}: All honest parties output consistent shares of a
+		field element.
+
+	\item \textit{Global randomness}: The secret corresponding to the output
+		shares is uniformly randomly distributed.
+
+	\item \textit{Secrecy}: No subset of less than $k$ players knows anything
+		about the shared secret other than the fact that it is uniformly
+		randomly distributed. Further, the shares of the honest parties are
+		uniformly random, constrained only by the fact that they are consistent
+		with the shares of the corrupted parties.
+\end{itemize}
+
+The basic idea for biased RNG, denoted $\piBRNG{n,k}$, is that each party
+generates its own random number $r_i$, some subset of which will be summed to
+give the global random number $r$. To get shares of $r$ without revealing it,
+each party keeps $r_i$ secret but shares it and gives the shares to the other
+players. Then, a subset of parties is chosen and the corresponding shares of
+their random numbers can be summed locally. To choose this subset, we invoke
+the consensus protocol $\consrng{n}{k}$. The security of the global random
+number comes from the fact that if we have $t$ corrupted parties, we make sure
+to sum at least $t + 1$ of the random numbers generated by the parties. This
+ensures that at least one uniformly random number was used in the sum, which
+means that the global random number itself will be uniformly randomly
+distributed as well. The protocol $\piBRNG{n,k}$ proceeds as follows:
+
+\begin{enumerate}
+	\item For all $i \in \mathcal{I}$, player $P_i$ picks $r_i \in \F$
+		uniformly randomly and creates shares ${(r_{i,j})}_{j \in
+		\mathcal{I}}$.  Denote the coefficients of the random polynomial that
+		determines this sharing by $c_0^{(i)}, \ldots, c_{t-1}^{(i)}$, so that
+		$r_i = c_0^{(i)}$ and
+		\begin{align*}
+			r_{i, j} = \sum_{k=0}^{t-1} c_k^{(i)} j^k.
+		\end{align*}
+
+	\item Each player $P_i$ then participates in $\consrng{n}{k}$ using the
+		generated coefficients, obtaining the output ${(r_{j, i})}_{j \in
+		I}$ where $I \subset \mathcal{I}$ is defined implicitly by
+		$\consrng{n}{k}$ as the set of players whose shares were agreed to be
+		used by $\consrng{n}{k}$.
+
+	\item The final output of player $P_i$ is
+		\begin{align*}
+			y_i = \sum_{j \in I} r_{j, i}.
+		\end{align*}
+\end{enumerate}
+
+\begin{remark}
+	For $\piBRNG{n,k}$ the synchronicity requirements are also weakened as
+	discussed in Remark~\ref{rem:openSync}. The case is clearer here though;
+	the only non-local part of the protocol is a call to $\consrng{n}{k}$,
+	which by definition has a desirable termination property.
+\end{remark}
+
+\begin{theorem}
+	Let $\mathcal{A}$ be a $t$-limited adversary where $t < k$. Then protocol
+	$\piBRNG{n,k}$ satisfies agreement, global randomness and secrecy.
+\end{theorem}
+
+\begin{proof}
+	We will prove each property in turn.
+
+	\begin{itemize}
+		\item \textit{Agreement}: The fact that all honest parties will agree
+			on the same subset $I \subset \mathcal{I}$ of parties whose shares
+			are to be included in the final sum is guaranteed by the
+			termination and agreement properties of the consensus protocol. The
+			consensus protocol also ensures (by dint of the validity property)
+			that for each $i \in I$ all honest parties will receive consistent
+			shares of a field element chosen by $P_i$. It follows that when
+			each honest party obtains its output by locally summing each of the
+			shares that came from parties in $I$, this sum will also be part of
+			a consistent sharing of the sum of the secret random numbers.
+
+		\item \textit{Global randomness}: Since $t < k$ and $k$ sharings are
+			used in the final sum, at least one of the secrets used in the sum
+			will have been generated by an honest party and hence be uniformly
+			random. The property then follows from Corollary~\ref{cor:unif}.
+
+		\item \textit{Secrecy}: We will begin by showing the second property
+			required for secrecy: that the shares of the honest parties appear
+			uniformly random, given the constraints. The first property will
+			follow as a consequence. Let
+			$y_c = {(y_i)}_{i \in \mathcal{I}_c}$
+			and
+			$y_h = {(y_i)}_{i \in \mathcal{I}_h}$,
+			and let
+			$x = {(x_i)}_{i \in \mathcal{I}_h}
+			\in
+			\shareRestrict{y_c}{\mathcal{I}}{\mathcal{I}_c}$
+			be arbitrary. Let $m \in I$ be such that $P_m$ is honest. This is
+			always possible because $|I| > t$. Let
+			$K \subset \mathcal{I}_h$
+			be such that $|K| = k - t$. We will need to use the fact that
+			${(r_{m, i})}_{i \in K}$
+			is independent from
+			${(r_{j, i})}_{i \in K}$
+			for all $j \in I \setminus \{m\}$. To see this, realise that
+			${(r_{m, i})}_{i \in \mathcal{I}_c \cup K}$
+			is uniformly randomly distributed in $\F^k$, which follows
+			from Theorem~\ref{thm:shareDist}. Then the independence follows
+			from this and the fact that the adversary chooses its shares
+			knowing only the subset
+			${(r_{m, i})}_{i \in \mathcal{I}_c}$
+			of the shares from $P_m$.
+
+			Now, from Theorem~\ref{thm:restrictSize} we know that
+			$|\shareRestrict{y_c}{\mathcal{I}}{\mathcal{I}_c}| = |\F|^{k-t}$.
+			Thus, we want to show that
+			\begin{align*}
+				\P(x \mid y_c) = |\F|^{t-k}.
+			\end{align*}
+			But again, we know that $x$ will be completely determined by $y_c$
+			and any $k-t$ of the shares in $x$, so we can write
+			\begin{align}\label{eq:brngSecrecy}
+				\P(x \mid y_c) = \P({(x_i)}_{i \in K} \mid y_c).
+			\end{align}
+			Since ${(r_{m, i})}_{i \in K}$ is independent from ${(r_{j, i})}_{i
+			\in K}$ for all $j \in I \setminus \{m\}$, it follows that we can
+			apply Corollary~\ref{cor:unif} to see that ${(y_i)}_{i \in K}$ is
+			uniformly distributed in $\F^{k-t}$. This fact combined with
+			Eq.~\eqref{eq:brngSecrecy} gives the desired result.
+
+			The first property required for secrecy now follows easily: we saw
+			above that ${(y_i)}_{i \in K}$ is uniformly distributed, and hence
+			for any particular $i \in K$ it follows that $y_i$ is uniformly
+			distributed. However, we would theoretically have $0 \in K$, in
+			which case $y_0$ would be the secret for the sharing, and hence
+			this too is uniformly random conditioned on $y_c$.
+	\end{itemize}
+\end{proof}
+
+\subsubsection{Unbiased RNG}
+
+Unbiased random number generation is a protocol $\piRNG{n,k}$ that generates a
+global random number that is unknown to all parties, but for which the parties
+hold shares. It can be described by the $n$-party function $\fRNG{n,k}$ which
+takes no input from the parties, and gives output that is $n$ shares of a
+random number $r$ (unknown to all parties) with reconstruction threshold $k$,
+giving each share to the corresponding party.
+
+To create an unbiased RNG protocol from a biased one, the idea is simple. Run
+the biased protocol $k$ times, so that each of the random secrets represents a
+coefficient of a uniformly random polynomial. Then, compute each parties' share
+of this polynomial by operating on the shares, and open these resulting shares
+of shares to each corresponding party using a directed open. Note that creating
+the shares of shares is a linear combination of the coefficients, and so can be
+computed on the shares locally. The protocol is as follows.
+
+\begin{enumerate}
+	\item\label{enum:rngCoeff} The players invoke $\piBRNG{n,k}$ $k$ times. Let
+		the $k$ output sharings be denoted by ${\left(r_i^{(1)}\right)}_{i \in
+		\mathcal{I}}, \ldots, {\left(r_i^{(k)}\right)}_{i \in \mathcal{I}}$,
+		where player $P_i$ receives the shares $r_i^{(j)}$ for all $1 \le j \le
+		k$. These represent shares of the coefficients $c_0, \ldots, c_{k-1}$
+		of a random degree $k-1$ polynomial.
+
+	\item\label{enum:rngrij} Each party $P_i$ locally computes
+		\begin{align*}
+			r_{i,j} = \sum_{l=0}^{k-1} r_i^{(l)} j^l
+		\end{align*}
+		for all $j \in \mathcal{I}$. This defines the sharings ${(r_{i,j})}_{i
+		\in \mathcal{I}}$ for each $j \in \mathcal{I}$ which are shares of
+		$r_j$ where
+		\begin{align*}
+			r_j = \sum_{l=0}^{k-1} c_l j^l.
+		\end{align*}
+		That is, $r_j$ is the share for party $P_j$ corresponding to the
+		polynomial with coefficients $c_0, \ldots, c_{k-1}$.
+
+	\item\label{enum:rngDO} The players invoke directed open $n$ times: for
+		each $j \in \mathcal{I}$, $r_j$ is opened towards party $P_j$. Each
+		party $P_j$ then finishes by outputting $r_j$.
+\end{enumerate}
+
+\begin{theorem}\label{thm:rng}
+	Let $k > t$. Then the protocol $\piRNG{n,k}$ $t$-securely evaluates
+	$\fRNG{n,k}$.
+\end{theorem}
+
+\begin{proof}
+	\newcommand{\proto}{\piRNG{n,k}}
+
+	Let adversary $\mathcal{A}$, input $x$ and auxiliary input $z$ be given.
+
+	We will characterise $\execD$. Define $m$ to be the messages that were sent
+	and received during step~\ref{enum:rngCoeff} (except for the output shares
+	of each invocation of $\piBRNG{n,k}$, these will be labelled separately)
+	and also define $m_o$ to be the messages sent by $\mathcal{A}$ for each of
+	the invocations of $\piDOpen{n,k,j}$ in step~\ref{enum:rngDO}. It follows
+	that $\execD$ is equal to
+	\begin{align*}
+		m,
+		{\left(
+			{\left(r_i^{(j)}\right)}_{i \in \mathcal{I}_c}
+		\right)}_{j \in \seq{k}},
+		m_o,
+		{\left(
+			r_i, {(r_{j,i})}_{j \in \mathcal{I}}
+		\right)}_{i \in \mathcal{I}_c},
+		{(y_i)}_{i \in \seq{n}},
+	\end{align*}
+	where $y_i$ is defined as in $\piRNG{n,k}$ if $i \in \mathcal{I}_h$, and
+	$\bot$ otherwise. Note that this is independent of the input $x$ to
+	$\piRNG{n,k}$ as any such input is ignored by the protocol (and also by
+	$\fRNG{n,k}$). Denote the set in which this lives by $F$; i.e. $\execD \in
+	F$.
+
+	We now seek to define a random variable $X$ taking values in some set $E$
+	and a function $h: E \to F$ in order to eventually apply
+	Theorem~\ref{thm:eqd_det}. To do this, first define the random variable $X$
+	as
+	\begin{align*}
+		X =
+		\left(
+			m,
+			{\left(
+				{\left(r_i^{(j)}\right)}_{i \in \mathcal{I}}
+			\right)}_{j \in \seqZ{k-1}},
+			m_o
+		\right),
+	\end{align*}
+	which is produced by $\mathcal{A}$ interacting with the trusted party for
+	$\piBRNG{n,k}$, and where the random tape for $\mathcal{A}$ and the trusted
+	party is uniformly randomly chosen. Define the set $E$ implicitly as the
+	set that $X$ takes values in. Now we can define our function $h$ as
+	\begin{align*}
+		\begin{aligned}
+			h: E &\to F\\
+			\left(
+				m,
+				r,
+				m_o
+			\right)
+			&\mapsto
+			\left(
+				m,
+				\nu(r),
+				m_o,
+				{\left(
+					\spl(\{i\}, \mu(r)),
+					{\left(\varphi(r, j, i)\right)}_{j \in \mathcal{I}}
+				\right)}_{i \in \mathcal{I}_c},
+				{\left(\lambda(i, \mu(r))\right)}_{i \in \mathcal{I}}
+			\right),
+		\end{aligned}
+	\end{align*}
+	where we have the following definitions:
+	\begin{itemize}
+		\item $\nu$ simply projects $r$, which includes shares for all parties,
+			to just those shares that the corrupted parties receive; i.e.
+			\begin{align*}
+				\nu
+				\left(
+					{\left(
+						{\left(
+							r_i^{(j)}
+						\right)}_{i \in \mathcal{I}}
+					\right)}_{j \in \seqZ{k-1}}
+				\right)
+				=
+				{\left(
+					{\left(r_i^{(j)}\right)}_{i \in \mathcal{I}_c}
+				\right)}_{j \in \seqZ{k-1}}.
+			\end{align*}
+
+		\item $\mu$ maps the set of shares
+			\begin{align*}
+				{\left(
+					{\left(r_i^{(j)}\right)}_{i \in \mathcal{I}}
+				\right)}_{j \in \seqZ{k-1}}
+			\end{align*}
+			to their corresponding (uniquely defined) secrets for each $j \in
+			\seqZ{k-1}$; the output is ${(c_i)}_{i \in \seqZ{k-1}}$. In the
+			protocol these are the coefficients corresponding to the final
+			random sharing.
+
+		\item $\varphi$ converts the shares of the coefficients into shares of
+			the shares, as in step~\ref{enum:rngrij} of the protocol. It is
+			defined as
+			\begin{align*}
+				\varphi: \F^{nk} \times \F^2
+				&\to
+				\F^n\\
+				{\left(
+					{\left(
+						r_i^{(j)}
+					\right)}_{i \in \mathcal{I}}
+				\right)}_{j \in \seqZ{k-1}},
+				(i, j)
+				&\mapsto
+				\sum_{l=0}^{k-1} r_i^{(l)} j^l
+			\end{align*}
+
+		\item $\lambda$ is defined by
+			\begin{align*}
+				\lambda: \F \times \F^k
+				&\to
+				\F \cup \{\bot\}\\
+				\left(
+					i,
+					{(c_j)}_{j \in \seqZ{k-1}}
+				\right)
+				&\mapsto
+				\begin{cases}
+					\bot & i \in \mathcal{I}_c\\
+					\sum_{j=0}^{k-1} c_j i^j & i \notin \mathcal{I}_c
+				\end{cases},
+			\end{align*}
+	\end{itemize}
+
+	Now, we claim that $\execD \eqd h(X)$. This is immediate for the first
+	three elements, as they are generated in $X$ exactly as they are in
+	$\piRNG{n,k}$ and using the same distributions. As for the second last
+	element, which represents the messages during the invocations of
+	$\piDOpen{n,k,j}$, this is correct due to how it is defined from $r$ in
+	$h(X)$ and the correctness property that the output of $\piDOpen{n,k}$
+	enjoys from its proof of security. Similarly, the fact that the last
+	element has the correct distribution also follows from its definition in
+	$\execD$ and in $h(X)$.
+
+	Now that we have characterised $\execD$, we turn our attention to the
+	simulated view. The idea behind the simulator is as follows. The simulator
+	can run the protocol as usual up until step~\ref{enum:rngDO}. At this
+	point, $\mathcal{A}$ does not know what the secrets for the random sharings
+	are, and the honest parties shares will be uniformly random conditioned on
+	the fact that they are consistent with $\mathcal{A}$'s shares. This allows
+	the simulator to simply extend the corrupted parties' shares (which are
+	known by the simulator since it holds enough shares to reconstruct them) to
+	valid random sharings of the target output shares, and this will have the
+	correct distribution.
+
+	The simulator is defined as follows.
+	\begin{enumerate}
+		\item The trusted party is invoked first. Let the output shares of the
+			trusted party be ${(y_i)}_{i \in \mathcal{I}}$.
+
+		\item $\mathcal{S}$ runs $\mathcal{A}$ and acts on behalf of the honest
+			parties for Step~\ref{enum:rngCoeff}. In doing so, $\mathcal{S}$
+			learns the biased shares ${\left(r_i^{(j)}\right)}_{j \in
+			\seqZ{k-1}}$ for each $i \in \mathcal{I}_c$, i.e.\ for each
+			corrupted party. Label the messages sent and received by
+			$\mathcal{A}$ during the invocations of $\piBRNG{n,k}$ as $m$, and
+			the messages that $\mathcal{A}$ would send to the invocations of
+			$\piDOpen{n,k,j}$ as $m_o$.
+
+		\item $\mathcal{S}$ constructs the honest parties' shares
+			${\left({\left(r_i^{(j)}\right)}_{i \in \mathcal{I}_h}\right)}_{j
+			\in \seqZ{k-1}}$ as follows. First, $\mathcal{S}$ picks random
+			coefficients ${(c_i)}_{i \in \seqZ{k-1}}$ that are consistent with
+			the target shares ${(y_i)}_{i \in \mathcal{I}_c}$, i.e.\
+			$\mathcal{S}$ picks uniformly randomly from the set
+			\begin{align*}
+				\set{%
+					{(c_i)}_{i \in \seqZ{k-1}} \in \F^k
+				}{%
+					y_i = \sum_{j=0}^{k-1} c_j i^j
+					\;
+					\forall i \in \mathcal{I}_c
+				}.
+			\end{align*}
+			Next, the honest parties' shares are chosen at random under the
+			condition that ${\left(r_i^{(j)}\right)}_{i \in \mathcal{I}}$ is a
+			consistent sharing of $c_j$ for each $j \in \seqZ{k-1}$. Precisely,
+			the shares are chosen uniformly randomly from the set
+			\begin{align*}
+				\set{%
+					{\left(
+						{\left(
+							r_i^{(j)}
+						\right)}_{i \in \mathcal{I}_h}\right)
+					}_{j \in \seqZ{k-1}}
+					\in
+					\F^{k(n-t)}
+				}{%
+					\begin{matrix}
+						\forall j \in \seqZ{k-1}\\
+						\exists {(c_l')}_{l \in \seq{k-1}}\\
+						\forall i \in \mathcal{I}
+					\end{matrix}
+					:
+					r_i^{(j)} = c_j + \sum_{l=1}^{k-1} c_l' i^l
+				}.
+			\end{align*}
+
+		\item Let the random variable $Y$ be defined as
+			\begin{align*}
+				Y =
+				\left(
+					m,
+					{\left(
+						{\left(r_i^{(j)}\right)}_{i \in \mathcal{I}}
+					\right)}_{j \in \seqZ{k-1}},
+					m_o
+				\right).
+			\end{align*}
+			$\mathcal{S}$ finishes by constructing its output by computing
+			$h(Y)$ and discarding the last element, which corresponds to the
+			output of the protocol; recall that this is not part of the
+			simulator's output as instead this is defined by the output of the
+			trusted party.
+	\end{enumerate}
+
+	Now we need to consider $\idealD$. We want to show that $h(Y) \eqd
+	\idealD$. This is clearly true for all but the last element because of how
+	$\idealD$ was constructed. But the last element will also have the correct
+	distribution with regard to the others due to its construction, as $Y$ was
+	reverse engineered to be consistent with the given output of the trusted
+	party.
+
+	Finally, we want to show that $X \eqd Y$, as then by
+	Theorem~\ref{thm:eqd_det} we will have $h(X) \eqd h(Y)$, which gives the
+	last equality needed to show that
+	\begin{align*}
+		\execD \eqd \idealD
+	\end{align*}
+	which will complete the proof. By construction, this is clearly true for
+	all but the honest party shares
+	\begin{align*}
+		{\left(
+			{\left(r_i^{(j)}\right)}_{i \in \mathcal{I}_h}
+		\right)}_{j \in \seqZ{k-1}},
+	\end{align*}
+	so we need only focus our attention on these. In the case of $X$, we know
+	from the secrecy property of the output shares of $\piBRNG{n,k}$ that
+	\begin{align*}
+		r_h^{(j)}
+		=
+		{\left(r_i^{(j)}\right)}_{i \in \mathcal{I}_h}
+	\end{align*}
+	is independently and uniformly distributed in
+	$\shareRestrict{r_c^{(j)}}{\mathcal{I}}{\mathcal{I}_c}$ for each $j \in
+	\seqZ{k-1}$, where
+	\begin{align*}
+		r_c^{(j)} = {\left(r_i^{(j)}\right)}_{i \in \mathcal{I}_c}.
+	\end{align*}
+	The result for $Y$ follows from the proceeding claims, the proofs of which
+	will conclude the proof of security.
+
+	\begin{claim}
+		The coefficients $c = c_0, \ldots, c_{k-1}$ as defined in the
+		simulation are independently and uniformly randomly distributed.
+	\end{claim}
+
+	\begin{proof}
+		Since the coefficients of a $k-1$ degree polynomial are completely
+		determined by $k$ points on that polynomial, we can see that for a
+		given set of shares $y = {(y_i)}_{i \in \mathcal{I}_c}$ (which is $t$
+		points), we could choose any set of $k-t$ points to determine the
+		coefficients. Thus for a given $y$ there are $|\F|^{k-t}$ possible
+		choices for $c$, each one being picked with equal probability. Now,
+		consider the probability of obtaining some given $c$, using the fact
+		that $y$ is chosen uniformly randomly. For this given $c$, there is a
+		unique $y$ that is consistent with $c$, and this $y$ is chosen with
+		probability $|\F|^{-t}$. But we not only require that the uniquely
+		determined $y$ was chosen, but also the unique $c$ for the
+		possibilities determined by $y$, for which we have just seen there
+		exists $|\F|^{k-t}$ choices, each chosen with equal probability.
+		Putting these two results together, we find that the probability for a
+		given $c$ is $|\F|^{-k}$. Since $c \in \F^k$, the result follows.
+	\end{proof}
+
+	\begin{claim}
+		For each $j \in \seqZ{k-1}$, the shares $r_h^{(j)}$ as defined in the
+		simulation are independently and uniformly randomly distributed in
+		$\shareRestrict{r_c^{(j)}}{\mathcal{I}}{\mathcal{I}_c}$.
+	\end{claim}
+
+	\begin{proof}
+		The independence of each $r_h^{(j)}$ follows easily from the
+		independence of each $c_j$. Next, notice that for a given $c_j$,
+		$r_h^{(j)} \in A_{c_j}$ where for each $c \in \F$ we have
+		\begin{align*}
+			A_c
+			=
+			\set{%
+				r_h^{(j)} \in \F^{n-t}
+			}{%
+				\exists {(c_i')}_{i \in \seq{k-1}}:
+				\forall i \in \mathcal{I}_c,
+				r_i = c + \sum_{l=1}^{k-1} c_l' i^l
+			}.
+		\end{align*}
+		Since a polynomial with degree $k$ is completely determined by $k$
+		points, so too are its coefficients, and hence each distinct element
+		(which is a set of $n-t > k$ shares) in $A_c$ corresponds also to a
+		distinct set of coefficients $c, c_1', \ldots, c_{k-1}'$. From this it
+		follows that for $c \ne d$ we have that $A_c$ and $A_d$ are disjoint
+		sets. Now, since $r_h^{(j)}$ is chosen uniformly randomly from
+		$A_{c_j}$, and $c_j$ is uniformly random, it follows that $r_h^{(j)}$
+		is chosen uniformly randomly from the set
+		\begin{align*}
+			\bigcup_{c_j \in \F} A_{c_j}.
+		\end{align*}
+		But it is easy to see that this set is equal to
+		$\shareRestrict{r_c^{(j)}}{\mathcal{I}}{\mathcal{I}_c}$.
+	\end{proof}
+
+	This completes the proof.
+\end{proof}
+
+\subsection{Random Zero Generation}\label{sec:rzg}
+
+Random zero generation is almost the same as random number generation as in
+Section~\ref{sec:rng}, except instead of obtaining shares of a global random
+number, the parties obtain a sharing of $0 \in \F$. Specifically, the ideal
+functionality $\fRZG{n,k}$ takes no inputs and outputs to each party $P_i$ a
+share $z_i$ of $0 \in \F$, such that this sharing is uniformly randomly
+distributed. The protocol is also almost the same as $\piRNG{n,k}$, except that
+instead of generating $k$ random shared coefficients, we only generate $k-1$
+because our secret (constant term in the polynomial) is fixed and not random.
+This is made precise in the following protocol $\piRZG{n,k}$:
+
+\begin{enumerate}
+	\item The players invoke $\piBRNG{n,k}$ with no input $k-1$ times. Let the
+		$k-1$ output sharings be denoted by ${\left(r_i^{(1)}\right)}_{i \in
+		\mathcal{I}}, \ldots, {\left(r_i^{(k-1)}\right)}_{i \in \mathcal{I}}$,
+		where player $P_i$ receives the shares $r_i^{(j)}$ for all $1 \le j \le
+		k-1$. These represent shares of the coefficients $c_1, \ldots, c_{k-1}$
+		of a random degree $k-1$ polynomial with a zero constant term.
+
+	\item Each party $P_i$ locally computes
+		\begin{align*}
+			r_{i,j} = \sum_{l=1}^{k-1} r_i^{(l)} j^l
+		\end{align*}
+		for all $j \in \mathcal{I}$. This defines the sharings ${(r_{i,j})}_{i
+		\in \mathcal{I}}$ for each $j \in \mathcal{I}$ which are shares of
+		$r_j$ where
+		\begin{align*}
+			r_j = \sum_{l=1}^{k-1} c_l j^l.
+		\end{align*}
+		That is, $r_j$ is the share for party $P_j$ corresponding to the
+		polynomial with coefficients $c_1, \ldots, c_{k-1}$.
+
+	\item The players invoke directed open $n$ times: for each $j \in
+		\mathcal{I}$, $r_j$ is opened towards party $P_j$. Each party $P_j$
+		then finishes by outputting $r_j$.
+\end{enumerate}
+
+The security theorem and proof for $\piRZG{n,k}$ is nearly identical to that
+for $\piRNG{n,k}$, and so is omitted.
+
+\begin{theorem}
+	Let $t < k - 1$. Then the protocol $\piRZG{n,k}$ $t$-securely evaluates
+	$\fRZG{n,k}$.
+\end{theorem}
+
+\begin{remark}
+	Note that the requirement on $t$ is that it is less than $k - 1$, as
+	opposed to $k$ as was the case for $\piRNG{n,k}$. This is because we are
+	generating a sharing of a known, fixed field element which gives one extra
+	share of information to the adversary (recall that the secret of a sharing
+	is equal to the share corresponding to index $0 \in \F$).
+\end{remark}
+
+\subsection{Random Keypair Generation}\label{sec:rkpg}
+
+Random key pair generation is again very similar to random number generation
+defined in Section~\ref{sec:rng}, except instead of only obtaining shares of a
+global random number, the parties also obtain the public key that corresponds
+to the shared random number (private key). Specifically, the ideal
+functionality $\fRKPG{n,k}$ takes no inputs and outputs to each party $P_i$ a
+share $x_i$ of some uniformly random $x \in \F$ and $y$ such that $y = g^x \in
+\G$ where $\G$ is a group with generator $g$.  Additionally, to enable the
+proof of security to work each party will also output $g^{x_i}$ for each $i \in
+\mathcal{I}$. This modification will be discussed after presenting the
+passively secure protocol ${\piRKPG{n,k}}'$ for $\fRKPG{n,k}$. We begin with
+this passively secure protocol and then discuss how it can be augmented to
+achieve active security later. The protocol is defined as follows.
+
+\begin{enumerate}
+	\item The parties invoke $\piRNG{n,k}$, so that party $P_i$ receives the
+		share $x_i$.
+
+	\item\label{enum:rkpgPassBC} Each party $P_i$ sends $g^{x_i}$ to every
+		other party.
+
+	\item Each party then reconstructs $g^x$ ``in the exponent'', along with
+		$g^{x_i}$ for each $i \in \mathcal{I}$. These, along with the share
+		$x_i$ constitute the output of the protocol for player $P_i$.
+\end{enumerate}
+
+The reason that the public values $g^{x_i}$ for each $i \in \mathcal{I}$ are
+included in the output for each party is to allow the simulator to construct a
+consistent view. If the simulator did not know these values, then under
+Assumption~\ref{ass:dlog} it would have no hope of constructing $g_i \in \G$
+such that $g_i = g^{x_i}$ for each $i \in \mathcal{I}_h$. However, for the same
+reason the discrete logarithm problem also implies that learning each $g_i$
+should not be a concern, and so we are happy to include them in the output of
+the protocol. We will formalise this reasoning somewhat after presenting the
+security theorem.
+
+\begin{theorem}\label{thm:rkpg}
+	Let $k > t$. Then the protocol ${\piRKPG{n,k}}'$ $t$-securely evaluates
+	$\fRKPG{n,k}$ in the presence of a passive adversary.
+\end{theorem}
+
+\begin{proof}
+	The proof is straightforward; since everything in the view of the adversary
+	is contained in the output of the trusted party, and since the adversary is
+	passive, constructing a simulated view from this trusted output is trivial.
+\end{proof}
+
+We now argue that for a $k$-sharing of $x \in \F$, knowing a subset of less
+than $k$ of these shares and $g^{x_i}$ for all shares $x_i$, as well as knowing
+$g^x$, it is not possible to discover $x$ if the discrete logarithm problem is
+hard. This is summarised in the following theorem.
+
+\begin{theorem}
+	Let $\G$ be a group of size at least $2^b$ with generator $g$ and prime
+	order, such that $\F$ is the finite field associated with this prime. Let
+	$x \in \F$ be uniformly random, and $x_1, \ldots, x_n$ be a uniformly
+	random $k$-sharing of $x$ where $k, n \in \N$ and $k \le n$. Let $t \in \N$
+	and $I \subset \seq{n}$ be given such that $t < k $ and $|I| = t$. Suppose
+	that a polynomial time Turing machine $\mathcal{D}$ takes as input $\G$,
+	$g$, ${(x_i)}_{i \in I}$, ${(g^{x_i})}_{i \in \seq{n}}$ and $g^x$, and
+	outputs $z \in \F$. Then if Assumption~\ref{ass:dlog} holds, it follows
+	that for all such $\mathcal{D}$, $\P(z = x)$ is negligible in $b$.
+\end{theorem}
+
+\begin{proof}
+	As is standard for these kinds of results, we will proceed by
+	contradiction; assume that there exists $\mathcal{D}$ that outputs $z$ such
+	that $\P(z = x)$ is non-negligible in $b$. We will show how this can be
+	used to solve a target instance of the discrete logarithm problem. To this
+	end, let $y \in \G$ be arbitrary. Pick $t$ independent and uniformly random
+	elements of $\F$ $x_1, \ldots, x_t$, and $k - t - 1$ independent and
+	uniformly random elements of $\G$, labelled $g_{t+1}, \ldots, g_{k-1}$.
+	Similarly label $g_i = g^{x_i}$ for each $i \in \seq{t}$. Also extend the
+	labels of $x_i$ so that for $i \in \{t+1, \ldots, k-1\}$ $x_i$ is the
+	unique value such that we have $g_i = g^{x_i}$ and also define $x_0$ to be
+	the unique value that satisfies $y = g^{x_0}$. Note that these values are
+	well defined but not known by any polynomial time Turing machine, they are
+	merely defined for convenience of exposition. From
+	Theorem~\ref{thm:shareCoeffLO} we know that there exist values
+	$\lambda_0^{(i)}, \ldots, \lambda_{k-1}^{(i)}$ such that
+	\begin{align*}
+		c_i = \sum_{j=0}^{k-1} \lambda_j^{(i)} x_j
+		\quad
+		\forall i \in \seqZ{k-1},
+	\end{align*}
+	where $c_0, \ldots, c_{k-1}$ are the uniquely defined coefficients that
+	correspond to a $k$-sharing that is consistent with the shares $x_0,
+	\ldots, x_{k-1}$. Using these values we can compute
+	\begin{align*}
+		g^{c_i} = h_i = \prod_{j=0}^{k-1} {g_j}^{\lambda_j^{(i)}}
+	\end{align*}
+	for all $i \in \seqZ{k-1}$. This in turn allows us to compute the remaining
+	shares in the exponents; we can compute
+	\begin{align*}
+		g_i = \prod_{j=0}^{k-1} {h_j}^{i^j}
+		\quad
+		\forall i \in \{k, \ldots, n\}.
+	\end{align*}
+	By construction, the shares corresponding to $g_1, \ldots, g_n$ are a
+	consistent sharing of $x_0$ and agree with the subset $x_1, \ldots, x_t$.
+	We may now run $\mathcal{D}$ with input $\G$, $g$, ${(x_i)}_{i \in
+	\seq{t}}$, ${(g_i)}_{i \in \seq{n}}$, and $y$. The output is $z$ where
+	$\P(z = x_0)$ with non-negligible probability. Since $y = g^{x_0}$, this
+	completes the proof.
+\end{proof}
+
+We now discuss how to augment ${\piRKPG{n,k}}'$ to be secure in the presence of
+an active adversary. This is not too difficult to achieve; the only part of the
+passively secure protocol in which the adversary can send (modified) messages
+is in step~\ref{enum:rkpgPassBC}. This can hinder the reconstruction of the
+global public key and also the public keys corresponding to the shares if there
+is no way to detect that these values are incorrect. Thus, we need only include
+a way to ensure that honest parties can detect correct values, and after
+receiving $k$ correct values they will be able to perform the reconstruction.
+To achieve this required detection, we will augment $\piRNG{n,k}$ to output,
+along side the usual random shares, a perfectly hiding commitment to each of
+the shares of the parties. Then, ${\piRKPG{n,k}}'$ is augmented by also
+submitting in step~\ref{enum:rkpgPassBC} a zero knowledge proof that has the
+perfect zero knowledge property that the value they sent corresponds to the
+commitment to their share. This will enable honest parties to detect which
+broadcasted values are correct. The associated simulator for the proof would
+then be able to work as previously, except to generate the ZK proof messages it
+can leverage the perfect zero knowledge property. The augmented protocol
+$\piRKPG{n,k}$ is as follows.
+
+\begin{enumerate}
+	\item The parties invoke the augmented RNG protocol ${\piRNG{n,k}}'$, so
+		that party $P_i$ receives the share $x_i$. Every party also receives
+		for each $i \in \mathcal{I}$ the commitment $c_i$ to $x_i$.
+
+	\item Each party $P_i$ sends $g^{x_i}$ to every other party, along with a
+		ZK proof $z_i$ that attests to the fact that the discrete log of
+		$g^{x_i}$ is the same as the value committed to by $c_i$.
+
+	\item Each party then reconstructs $g^x$ ``in the exponent'', along with
+		$g^{x_i}$ for each $i \in \mathcal{I}$. These, along with the share
+		$x_i$ constitute the output of the protocol for player $P_i$.
+\end{enumerate}
+
+\subsection{Local Arithmetic}
+
+We will now describe the fundamental computational primitives for the SMPC
+algorithm. This includes the standard operations that can be performed on
+elements of a field, i.e.\ the field operations and their inverses. For most of
+the operations, applying them locally to the shares (that is, each party
+applies them to their own shares, and on a collective level we can describe
+this as operating element-wise) results in the equivalent effect on the secret
+itself, with no effect to the threshold of the sharing. The one operation for
+which this is not the case is multiplication; here operating locally will
+indeed give a share of the product of the secrets, but the threshold will
+increase and the sharing will exhibit unwanted structure. This means some extra
+work will need to be done to achieve a desired multiplication protocol. For all
+of the other operations, the fact that they can be carried out locally means
+that no messages are exchanged between parties and therefore a ``protocol''
+that encapsulates one of these operations is trivially secure under the
+security definition, and hence the corresponding theorems will not be stated
+nor proven.
+
+To simplify notation, write the sharing ${(x_i)}_{i \in \mathcal{I}}$ as
+$x_\mathcal{I}$. We will denote local operations on shares as follows, where on
+the left we have the notation and the right we have what it means:
+\begin{align*}
+	c_\mathcal{I} &= a_\mathcal{I} + b_\mathcal{I} &
+	c_\mathcal{I} &= {(a_i + b_i)}_{i \in \mathcal{I}}\\
+	c_\mathcal{I} &= a_\mathcal{I} - b_\mathcal{I} &
+	c_\mathcal{I} &= {(a_i - b_i)}_{i \in \mathcal{I}}\\
+	c_\mathcal{I} &= a_\mathcal{I} b_\mathcal{I} &
+	c_\mathcal{I} &= {(a_i b_i)}_{i \in \mathcal{I}}\\
+	c_\mathcal{I} &= -a_\mathcal{I} &
+	c_\mathcal{I} &= {(-a_i)}_{i \in \mathcal{I}}\\
+	c_\mathcal{I} &= r a_\mathcal{I} &
+	c_\mathcal{I} &= {(r a_i)}_{i \in \mathcal{I}}
+\end{align*}
+We will consider an example to make this clear. Consider addition of two shared
+values where each party $P_i$ holds the shares $a_i$ and $b_i$. Then $P_i$
+simply defines the share $c_i$ to be $a_i + b_i$, and this will be its output
+of the addition protocol.
+
+\section{SMPC Protocols}
+
+In this section we will outline the protocols that are built from the
+primitives outlined in the preceding section. The main goal that we are working
+towards is to be able to perform an ECDSA signature where the private key is
+distributed among the parties as a shared secret. To do this, we will construct
+the SMPC protocols that will be sufficient to perform the signature. We will
+then be able to leverage the composability property of the security framework
+to be able to compose our building blocks together in a secure way. However,
+this security definition does not capture all of the security properties that
+we seek in general. For instance, it does not capture the security of our
+secret (in the context of Shamir Secret Sharing). We can see this by
+considering the following obviously insecure protocol for multiplying two
+secrets and then immediately opening the result: simply open the two sharings
+and then multiply them together locally. The reason that this continues to
+satisfy security as defined in Definition~\ref{def:sec}, despite being
+intuitively insecure, is that it is evaluating an ideal functionality that we
+do not actually want (the ideal functionality that we want simply takes the
+input shares and gives the product of the secrets). Rather, it evaluates
+precisely the secure functionality defined by this example protocol: take the
+input shares and give the product of the secrets \textit{but also the input
+secrets themselves} (the latter because of the opens that are performed in the
+protocol description). Now, it becomes clear that the reason this example
+protocol is secure under Definition~\ref{def:sec}, but not intuitively, is
+because the actual protocols explicitly describes itself as revealing
+information. We can see that the problem in this case arises because of opening
+values that should not be revealed. The solution to this is to make sure that
+whenever we perform an open during our protocol, the revealed value should be
+uniformly randomly distributed, so that nothing is ``learned'' from it. Because
+open is the only protocol that reveals information about secrets, as long as we
+make sure that we do this when constructing a protocol out of our primitive
+protocols, we can be sure that we are securely evaluating what we intend
+without worrying about exactly how we got there.
+
+\subsection{Multiply and Open}
+
+The ideal functionality $\fMulOpen{n,k}$ that represents the multiply and then
+open protocol takes as input two sets of shares for two field elements and
+gives as output to each party the product of these two secrets.
+
+Let $a_\mathcal{I}$ and $b_\mathcal{I}$ be two $k$-sharings of respective field
+elements $a, b \in \F$. The protocol $\piMulOpen{n,k}(a_\mathcal{I},
+b_\mathcal{I})$ is defined by
+\begin{align*}
+	c_\mathcal{I} &= a_\mathcal{I}b_\mathcal{I}\\
+	c &\leftarrow \piSOpen{n,2k}(c_\mathcal{I})
+\end{align*}
+
+\begin{theorem}
+	Let $n \in \N$ and $k \le \frac{n}{2}$. Let $t$ be such that $t \le \frac{n
+	- 2k + 1}{2}$ and $t < k$. Then the protocol $\piMulOpen{n,k}$ $t$-securely
+	evaluates $\fMulOpen{n,k}$.
+\end{theorem}
+
+We require that $k \le \frac{n}{2}$ otherwise after the multiplication the
+threshold of the sharing would be too large for it to be possible to
+reconstruct the secret even with $n$ parties. The first requirement on $t$
+comes from $\piSOpen{n,2k}$, and the second requirement on $t$ is the usual one
+to disallow the adversary to reconstruct secrets.
+
+\subsection{Multiplication}
+
+The ideal functionality $\fMul{n,k}$ that represents the multiplication
+protocol takes as input two sets of shares for two field elements and gives as
+output to each party a share of the product of these two secrets. This
+protocol, along with addition, allows for in theory arbitrary arithmetic
+circuits and hence arbitrary computations. However, for complicated
+computations it is usually more efficient to use other more tailored protocols
+and primitives, as we will see is the case for ECDSA\@. The multiplication here
+protocol is included mainly for completeness.
+
+Let $a_\mathcal{I}$ and $b_\mathcal{I}$ be two $k$-sharings of respective field
+elements $a, b \in \F$. The protocol $\piMul{n,k}(a_\mathcal{I},
+b_\mathcal{I})$ is defined by
+\begin{align*}
+	r_\mathcal{I} &\leftarrow \piRNG{n,k}\\
+	c_\mathcal{I} &= a_\mathcal{I}b_\mathcal{I}\\
+	c'_\mathcal{I} &= c_\mathcal{I} + r_\mathcal{I}\\
+	c' &\leftarrow \piSOpen{n,2k}(c'_\mathcal{I})\\
+	c_\mathcal{I} &= c' - r_\mathcal{I}
+\end{align*}
+
+\begin{theorem}
+	Let $n \in \N$ and $k \le \frac{n}{2}$. Let $t$ be such that $t \le \frac{n
+	- 2k + 1}{2}$ and $t < k$. Then the protocol $\piMul{n,k}$ $t$-securely
+	evaluates $\fMul{n,k}$.
+\end{theorem}
+
+The restrictions on $k$ and $t$ are as for $\piMulOpen{n,k}$. The only value
+that we open is $c_\mathcal{I} + r_\mathcal{I}$, which is uniformly random and
+so preserves our desired security. Note that $r_\mathcal{I}$ has threshold $k$
+whereas $c_\mathcal{I}$ has threshold $2k$. This is not a problem as when we
+add two sharings of different thresholds, the resulting sharing has a threshold
+equal to the larger of the two. Additionally, we do not need to worry about any
+structure this may introduce in the shares, because the sharing is randomised
+by $\piSOpen{n,2k}$.
+
+\subsection{Inversion}
+
+The ideal functionality $\fInv{n,k}$ that represents the field inversion
+protocol takes as input a sets of shares of a field element and gives as output
+to each party shares of the multiplicative inverse of this field element.
+
+Let $a_\mathcal{I}$ be a $k$-sharing of a field element $a \in \F$. The
+protocol $\piInv{n,k}(a_\mathcal{I})$ is defined by
+\begin{align*}
+	r_\mathcal{I} &\leftarrow \piRNG{n,k}\\
+	t &\leftarrow \piMulOpen{n,k}(a_\mathcal{I}, r_\mathcal{I})\\
+	b_\mathcal{I} &= t^{-1}r_\mathcal{I}
+\end{align*}
+
+\begin{remark}
+	Because the shares of the product are randomised by $\piMulOpen{n,k}$, it
+	is conjectured that it is safe to define $r_\mathcal{I}$ using the less
+	expensive biased RNG protocol $\piBRNG{n,k}$.
+\end{remark}
+
+\begin{theorem}
+	Let $n \in \N$ and $k \le \frac{n}{2}$. Let $t$ be such that $t \le \frac{n
+	- 2k + 1}{2}$ and $t < k$. Let $x_\mathcal{I}$ be a $k$-sharing of some $x
+	\in \F \setminus \{0\}$. Then the protocol $\piInv{n,k}(x_\mathcal{I})$
+	$t$-securely evaluates $\fInv{n,k}(x_\mathcal{I})$.
+\end{theorem}
+
+The restrictions on $k$ and $t$ are due to $\piMulOpen{n,k}$. The only value
+that is opened is the product of the secret and a random value, and so is
+uniformly random. Note however that we need to require that the input shares
+are of a non-zero field element, otherwise the open will reveal this fact. Also
+note that it is possible that the random number is itself zero, and so if we
+were to be careful we would check to see if the value we open is zero, and if
+it is, abort this attempt and retry the protocol with a different random
+number. However, in our case we ignore this because we will use a field with
+approximately $2^{256}$ elements and so the probability that the random number
+is zero is negligible.
+
+\section{Signature Algorithm}
+
+The ideal functionality $\fSign{n,k}$ that represents the ECDSA protocol takes
+as input a sets of shares of a field element (the private key) and a public
+field element (the message digest) and gives as output to each party the values
+$r, s$ which constitute a valid ECDSA signature for the given private key and
+message.
+
+Let $d_\mathcal{I}$ be a $k$-sharing of a field element $d \in \F$ that
+represents an ECDSA private key, and let $z \in \F$ be a message digest. Let
+the associated group in which the public keys live, $\G$, have prime order $q$.
+The protocol $\piSign{n,k}(d_\mathcal{I}, z)$ is defined by
+\begin{align*}
+	(k_\mathcal{I}, p_b) &\leftarrow \piRKPG{n,k}\\
+	(x, y) &= p_b\\
+	r &= x \mod q\\
+	k'_\mathcal{I} &\leftarrow \piInv{n,k}(k_\mathcal{I})\\
+	t_\mathcal{I} &= rd_\mathcal{I}\\
+	t_\mathcal{I} &= t_\mathcal{I} + z_\mathcal{I}\\
+	s &\leftarrow \piMulOpen{n,k}(t_\mathcal{I}, k'_\mathcal{I})
+\end{align*}
+
+\begin{theorem}
+	Let $n \in \N$ and $k \le \frac{n}{2}$. Let $t$ be such that $t \le \frac{n
+	- 2k + 1}{2}$ and $t < k$. Let $d_\mathcal{I}$ be a $k$-sharing of a ECDSA
+	private key, and let $z \in \F$ be a message digest. Then the protocol
+	$\piSign{n,k}(d_\mathcal{I}, z)$ $t$-securely evaluates
+	$\fSign{n,k}(d_\mathcal{I}, z)$.
+\end{theorem}
+The restrictions on $k$ and $t$ are inherited from the constituent protocols.
+
+\begin{remark}
+	For the system of interest, we set $k = \frac{n}{3}$. In this case, the
+	requirement on $t$ is that $t \le \frac{n}{6} + \frac{1}{2}$. Note however
+	that from the discussion of $\piSOpen{n,k}$ that we still maintain
+	\textit{safety with abort} for $t \le \frac{n}{3}$.
+\end{remark}
+
+\newpage
+\printbibliography{}
+
+\end{document}

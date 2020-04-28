@@ -1,15 +1,3 @@
-@article{canetti_2000,
-	title={Security and Composition of Multiparty Cryptographic Protocols},
-	author={Ran Canetti},
-	journal={Journal of Cryptology},
-	year={2000},
-	volume={13},
-	number={1},
-	pages={143–202},
-	month={January},
-	doi={10.1007/s001459910006}
-}
-
 @misc{crain_2017,
     title={DBFT: Efficient Byzantine Consensus with a Weak Coordinator and its Application to Consortium Blockchains},
     author={Tyler Crain and Vincent Gramoli and Mikel Larrea and Michel Raynal},
@@ -26,31 +14,6 @@
     eprint={1807.04938v3},
     archivePrefix={arXiv},
     primaryClass={cs.DC}
-}
-
-@misc{welch_1986,
-	title={Error Correction for Algebraic Block Codes},
-	author={Lloyd R. Welch and Elwyn R. Berlekamp},
-	note={U.S. Patent 4,633,470},
-	year={1986},
-	month={December}
-}
-
-@Inbook{gao_2003,
-	author="Shuhong Gao",
-	editor="Bhargava, Vijay K.
-	and Poor, H. Vincent
-	and Tarokh, Vahid
-	and Yoon, Seokho",
-	title="A New Algorithm for Decoding Reed-Solomon Codes",
-	bookTitle="Communications, Information and Network Security",
-	year="2003",
-	publisher="Springer US",
-	address="Boston, MA",
-	pages="55--68",
-	abstract="A new algorithm is developed for decoding Reed-Solomon codes. It uses fast Fourier transforms and computes the message symbols directly without explicitly finding error locations or error magnitudes. In the decoding radius (up to half of the minimum distance), the new method is easily adapted for error and erasure decoding. It can also detect all errors outside the decoding radius. Compared with the BerlekampMassey algorithm, discovered in the late 1960's, the new method seems simpler and more natural yet it has a similar time complexity.",
-	isbn="978-1-4757-3789-9",
-	doi="10.1007/978-1-4757-3789-9_5",
 }
 
 @article{shamir_1979,
@@ -82,7 +45,7 @@
 	year={2001}
 }
 
-@INPROCEEDINGS{feldman_1987,
+@inproceedings{feldman_1987,
 	author={P. {Feldman}},
 	booktitle={28th Annual Symposium on Foundations of Computer Science (sfcs 1987)},
 	title={A practical scheme for non-interactive verifiable secret sharing},
@@ -95,7 +58,63 @@
 	month={Oct},
 }
 
-@inproceedings{pedersen_1991,
+%
+% Security
+%
+
+@article{c00,
+	title={Security and Composition of Multiparty Cryptographic Protocols},
+	author={Ran Canetti},
+	journal={Journal of Cryptology},
+	year={2000},
+	volume={13},
+	number={1},
+	pages={143–202},
+	month={January},
+	doi={10.1007/s001459910006}
+}
+
+@inproceedings{mr92,
+	author={Micali, Silvio and Rogaway, Phillip},
+	editor={Feigenbaum, Joan},
+	title={Secure Computation},
+	booktitle={Advances in Cryptology --- CRYPTO '91},
+	year={1992},
+	publisher={Springer Berlin Heidelberg},
+	address={Berlin, Heidelberg},
+	pages={392--404},
+	isbn={978-3-540-46766-3}
+}
+
+@article{gmr89,
+	author={Goldwasser,Shafi and Micali,Silvio and Rackoff,Charles},
+	year={1989},
+	title={The Knowledge Complexity of Interactive Proof Systems},
+	journal={SIAM Journal on Computing},
+	volume={18},
+	number={1},
+	pages={186-208},
+	isbn={0097-5397},
+	language={English},
+}
+
+@inproceedings{b92,
+	author={Beaver, Donald},
+	editor={Feigenbaum, Joan},
+	title={Foundations of Secure Interactive Computing},
+	booktitle={Advances in Cryptology --- CRYPTO '91},
+	year={1992},
+	publisher={Springer Berlin Heidelberg},
+	address={Berlin, Heidelberg},
+	pages={377--391},
+	isbn={978-3-540-46766-3}
+}
+
+%
+% Pedersen
+%
+
+@inproceedings{p91a,
 	author = {Pedersen, Torben P.},
 	title = {Non-Interactive and Information-Theoretic Secure Verifiable Secret Sharing},
 	year = {1991},
@@ -106,4 +125,172 @@
 	pages = {129–140},
 	numpages = {12},
 	series = {CRYPTO ’91}
+}
+
+@inproceedings{p91b,
+	author={Pedersen, Torben Pryds},
+	editor={Davies, Donald W.},
+	title={A Threshold Cryptosystem without a Trusted Party},
+	booktitle={Advances in Cryptology --- EUROCRYPT '91},
+	year={1991},
+	publisher={Springer Berlin Heidelberg},
+	address={Berlin, Heidelberg},
+	pages={522--526},
+	isbn={978-3-540-46416-7}
+}
+
+%
+% SMPC
+%
+
+@inproceedings{grr98,
+	author={Gennaro,Rosario and Rabin,Michael and Rabin,Tal},
+	editor={ },
+	year={1998},
+	title={Simplified VSS and fast-track multiparty computations with applications to threshold cryptography},
+	publisher={ACM},
+	pages={101-111},
+	isbn={9780897919777;0897919777;},
+	language={English},
+}
+
+@inproceedings{bb89,
+	author={Bar-Ilan,J. and Beaver,D.},
+	editor={ },
+	year={1989},
+	title={Non-cryptographic fault-tolerant computing in constant number of rounds of interaction},
+	publisher={ACM},
+	pages={201-209},
+	isbn={0897913264;9780897913263;},
+	language={English},
+}
+
+@inproceedings{dkl+12,
+	author={Damg{\aa}rd, Ivan and Keller, Marcel and Larraia, Enrique and Miles, Christian and Smart, Nigel P.},
+	editor={Visconti, Ivan and De Prisco, Roberto},
+	title={Implementing AES via an Actively/Covertly Secure Dishonest-Majority MPC Protocol},
+	booktitle={Security and Cryptography for Networks},
+	year={2012},
+	publisher={Springer Berlin Heidelberg},
+	address={Berlin, Heidelberg},
+	pages={241--263},
+	isbn={978-3-642-32928-9}
+}
+
+@article{al17,
+	author={Asharov,Gilad and Asharov,Gilad and Lindell,Yehuda and Lindell,Yehuda},
+	year={2017},
+	title={A Full Proof of the BGW Protocol for Perfectly Secure Multiparty Computation},
+	journal={Journal of Cryptology},
+	volume={30},
+	number={1},
+	pages={58-151},
+	isbn={0933-2790},
+	language={English},
+}
+
+%
+% DKG
+%
+
+@article{gjkr07,
+	author={Gennaro,Rosario and Jarecki,Stanislaw and Krawczyk,Hugo and Rabin,Tal},
+	year={2007},
+	title={Secure Distributed Key Generation for Discrete-Log Based Cryptosystems},
+	journal={Journal of Cryptology},
+	volume={20},
+	number={1},
+	pages={51-83},
+	isbn={0933-2790},
+	language={English},
+}
+
+%
+% Treshold DSA
+%
+
+@inproceedings{gg18,
+	author={Gennaro,Rosario and Goldfeder,Steven},
+	editor={ },
+	year={2018},
+	title={Fast Multiparty Threshold ECDSA with Fast Trustless Setup},
+	publisher={ACM},
+	pages={1179-1194},
+	keywords={digital signatures; threshold signatures; multiparty computation; cryptpgraphy; bitcoin},
+	isbn={9781450356930;1450356931;},
+	language={English},
+}
+
+@inproceedings{ggn16,
+	author={Gennaro, Rosario and Goldfeder, Steven and Narayanan, Arvind},
+	editor={Manulis, Mark and Sadeghi, Ahmad-Reza and Schneider, Steve},
+	title={Threshold-Optimal DSA/ECDSA Signatures and an Application to Bitcoin Wallet Security},
+	booktitle={Applied Cryptography and Network Security},
+	year={2016},
+	publisher={Springer International Publishing},
+	address={Cham},
+	pages={156--174},
+	isbn={978-3-319-39555-5}
+}
+
+@inproceedings{gjkr96,
+	author={Gennaro, Rosario and Jarecki, Stanis{\l}aw and Krawczyk, Hugo and Rabin, Tal},
+	editor={Maurer, Ueli},
+	title={Robust Threshold DSS Signatures},
+	booktitle={Advances in Cryptology --- EUROCRYPT '96},
+	year={1996},
+	publisher={Springer Berlin Heidelberg},
+	address={Berlin, Heidelberg},
+	pages={354--371},
+	isbn={978-3-540-68339-1}
+}
+
+@article{mr04,
+	author={MacKenzie, Philip and Reiter, Michael K.},
+	title={Two-party generation of DSA signatures},
+	journal={International Journal of Information Security},
+	volume={2},
+	number={3},
+	year={2004},
+	month={August},
+	pages={218--239},
+	url={https://doi.org/10.1007/s10207-004-0041-0},
+	doi={10.1007/s10207-004-0041-0}
+}
+
+%
+% Reed-Solomon
+%
+
+@misc{welch_1986,
+	title={Error Correction for Algebraic Block Codes},
+	author={Lloyd R. Welch and Elwyn R. Berlekamp},
+	note={U.S. Patent 4,633,470},
+	year={1986},
+	month={December}
+}
+
+@inbook{gao_2003,
+	author={Shuhong Gao},
+	editor={Bhargava, Vijay K.  and Poor, H. Vincent and Tarokh, Vahid and Yoon, Seokho},
+	title={A New Algorithm for Decoding Reed-Solomon Codes},
+	bookTitle={Communications, Information and Network Security},
+	year={2003},
+	publisher={Springer US},
+	address={Boston, MA},
+	pages={55--68},
+	isbn={978-1-4757-3789-9},
+	doi={10.1007/978-1-4757-3789-9_5},
+}
+
+@misc{ms81,
+	author={McEliece,R. and Sarwate,D.},
+	year={1981},
+	title={On sharing secrets and Reed-Solomon codes},
+	journal={Communications of the ACM},
+	volume={24},
+	number={9},
+	pages={583-584},
+	isbn={0001-0782},
+	language={English},
 }

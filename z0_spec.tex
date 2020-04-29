@@ -578,7 +578,7 @@ formalised for our specific context as follows.
 	\in \F$, $\P(T(\mathbb{G}, g, g^x) = x)$ is negligible.
 \end{assumption}
 
-\section{Security}
+\section{Security Model}
 
 \newcommand{\exec}[4]{\textup{\texttt{EXEC}}_{#1, #2} (#3, #4)}
 \newcommand{\execD}{\exec{\proto}{\mathcal{A}}{x}{z}}
@@ -588,10 +588,14 @@ formalised for our specific context as follows.
 
 In this section we will outline the security model and definitions that we will
 use to prove that the presented protocols are secure. In general, we will
-consider an active, rushing adversary with static corruptions. We also define
-the adversary to be computationally bounded, i.e.\ so that it cannot compute
-discrete logarithms, as in Assumption~\ref{ass:dlog}. In this \paper{} these
-properties should be assumed of the adversary unless specified otherwise.
+consider an malicious, rushing adversary with static corruptions. We also
+define the adversary to be computationally bounded, i.e.\ so that it cannot
+compute discrete logarithms, as in Assumption~\ref{ass:dlog}. In this \paper{}
+these properties should be assumed of the adversary unless specified otherwise.
+Further, we assume that each party is connected to each other by a private
+point-to-point channel, and that these channels allow for each party to verify
+that the message came from the specified sender, using e.g.\ a cryptographic
+signature scheme.
 
 The notion of security we will use is that of Canetti~\cite{c00}, which is
 based on the idea of comparing a designed protocol to an ideal case that is
@@ -633,7 +637,7 @@ proves that this security definition enjoys a \textit{composability} property,
 in that if a protocol $\pi$ uses a secure subprotocol $\pi'$ as part of its
 execution, then to prove $\pi$ is secure one need only prove this when $\pi'$
 has been substituted by the associated $n$-party functionality $f$.
-Additionally, in this \paper{} we will consider \textit{active} adversaries,
+Additionally, in this \paper{} we will consider \textit{malicious} adversaries,
 which means that they can deviate arbitrarily from the protocol and send
 arbitrary messages. Before the start of the protocol, the adversary (this
 applies to both $\mathcal{A}$ and $\mathcal{S}$) may also modify the inputs of
@@ -760,52 +764,118 @@ public key $\kappa$ by $\encrypt{\kappa}{m}$.
 \subsection{Zero Knowledge Proofs}
 
 We will make use of general purpose zero knowledge (ZK) proofs in some of our
-protocols. In some cases, we will require that these proofs have the
-\textit{perfect zero knowledge} property, which is summarised in the following
-definition by Goldreich~\cite{goldreich_2001}.
+protocols. Specifically, we need non-interactivity, meaning that a prover can
+create a single proof object that can be verified by a verifier without any
+additional interaction. We borrow the definitions of such a system
+from~\cite{g16}.
 
-\begin{definition}[Perfect Zero Knowledge]
-	Let $(P, V)$ be an interactive proof system for some language $L$. We say
-	that $(P, V)$ is \textbf{Perfect Zero Knowledge} if for every probabilistic
-	polynomial time interactive Turing machine $V^\ast$ there exists a
-	probabilistic polynomial time algorithm $M^\ast$ such that for every $x \in
-	L$ the following two conditions hold:
+Let $R$ be a binary relation, such that we have elements $(\phi, w) \in R$
+where $\phi$ is called the statement and $w$ is called the witness. We have the
+following algorithms.
 
-	\begin{enumerate}
-		\item $M^\ast$ succeeds with probability at least $\frac{1}{2}$; i.e.\
-			if we denote a failure by the output of $\bot$, then
-			\begin{align*}
-				\P(M^\ast(x) = \bot) \le \frac{1}{2}.
-			\end{align*}
+\begin{itemize}
+	\item ($\sigma, \tau) \leftarrow \texttt{setup}(R)$: This is the setup that
+		produces the common reference string $\sigma$ and simulation trapdoor
+		$\tau$ for $R$.
 
-		\item Let $X$ be the random variable that is the output of $V^\ast$
-			after interacting with the interactive machine $P$ on common input
-			$x$, and let $m^\ast(x)$ be the random variable that is exactly
-			$M^\ast(x)$ but conditioned on the fact that $M^\ast(x) \ne \bot$.
-			Then we require that these two random variables are equally
-			distributed, i.e.
-			\begin{align*}
-				m^\ast(x) \eqd X.
-			\end{align*}
-	\end{enumerate}
+	\item $\pi \leftarrow \texttt{prove}(R, \sigma, \phi, w)$: This is the
+		proving algorithm that produces a proof $\pi$ for the statement $(\phi,
+		w) \in R$ using $\sigma$.
+
+	\item $b \leftarrow \texttt{verify}(R, \sigma, \phi, \pi)$: This is the
+		verification algorithm that returns a result $b \in \{0, 1\}$ such that
+		$b = 0$ signifies that the proof $\pi$ for $\phi$ using $\sigma$ was
+		rejected, and $b = 1$ signifies acceptance.
+
+	\item $\pi \leftarrow \texttt{sim}(R, \tau, \phi)$: This is the simulation
+		algorithm that takes the trapdoor $\tau$ and a statement $\phi$ and
+		returns a proof $\pi$.
+\end{itemize}
+
+We require the common properties of \textit{completeness}, \textit{perfect
+zero-knowledge} and \textit{computational soundness}. They are summarised in
+the following definitions, using the notation from~\cite{g16}.
+
+\begin{definition}[Completeness]
+	Completeness states that an honest prover should be able to convince an
+	honest verifier of a true statement.
+	\begin{align*}
+		\P\left[
+			\begin{matrix}
+				(\sigma, \tau) \leftarrow \textup{\texttt{setup}}(R) \\
+				\pi \leftarrow \textup{\texttt{prove}}(R, \sigma, \phi, w)
+			\end{matrix}
+			\middle|
+			\textup{\texttt{verify}}(R, \sigma, \phi, \pi) = 1
+		\right]
+		=
+		1
+	\end{align*}
+\end{definition}
+
+\begin{definition}[Perfect zero-knowledge]
+	Perfect zero-knowledge states that a proof does not leak any knowledge
+	other than the truth of the statement. Precisely, it must hold that for all
+	$(\phi, w) \in R$, auxiliary input $z$ and any adversary $\mathcal{A}$
+	\begin{align*}
+		\P\left[
+			\begin{matrix}
+				\sigma \leftarrow \textup{\texttt{setup}}(R) \\
+				\pi \leftarrow \textup{\texttt{prove}}(R, \sigma, \phi, w)
+			\end{matrix}
+			\middle|
+			\mathcal{A}(R, z, \sigma, \tau, \pi) = 1
+		\right]
+		=\\
+		\P\left[
+			\begin{matrix}
+				\sigma \leftarrow \textup{\texttt{setup}}(R) \\
+				\pi \leftarrow \textup{\texttt{sim}}(R, \tau, \phi)
+			\end{matrix}
+			\middle|
+			\mathcal{A}(R, z, \sigma, \tau, \pi) = 1
+		\right]
+	\end{align*}
+\end{definition}
+
+\begin{definition}[Computational soundness]
+	Computational soundness states that it is impossible to prove a false
+	statement. Specifically, let $L_R$ be the language of statements such that
+	there exists a matching witness in $R$. Then for all adversaries
+	$\mathcal{A}$ we require that
+	\begin{align*}
+		\P\left[
+			\begin{matrix}
+				(\sigma, \tau) \leftarrow \textup{\texttt{setup}}(R) \\
+				(\phi, \pi) \leftarrow \mathcal{A}(R, z, \sigma)
+			\end{matrix}
+			\middle|
+			\begin{matrix}
+				\phi \notin L_R\\
+				\textup{\texttt{verify}}(R, \sigma, \phi, \pi) = 1
+			\end{matrix}
+		\right]
+		\approx
+		0
+	\end{align*}
 \end{definition}
 
 \subsection{Consensus}
 
 \newcommand{\consrng}[2]{\rho_\texttt{RNG}^{#1, #2}}
 
-For some of the protocols described in this \paper{}, we will make use of a
-consensus algorithm. A consensus algorithm allows a network of
-\textit{processes}, some of which may be \textit{faulty}, to arrive at a joint
-decision value. The key properties of a consensus algorithm that we will
-consider are those defined Buchman et~al.~\cite{buchman_2018}.
+To build our random number generation protocol, we will make use of a consensus
+algorithm. A consensus algorithm allows a network of \textit{processes}, some
+of which may be \textit{faulty}, to arrive at a joint decision value. The key
+properties of a consensus algorithm that we will consider are those defined
+Buchman et~al.~\cite{buchman_2018}.
 
 \begin{enumerate}
 	\item \textit{Termination}: Every nonfaulty process eventually decides on a
 		value.
 	\item \textit{Agreement}: No two nonfaulty processes decide on different
 		values.
-	\item \textit{Validity}: A decided value is valid, i.e., it satisfies the
+	\item \textit{Validity}: A decided value is valid, i.e., it satisfies a
 		predefined predicate denoted $\texttt{valid}()$.
 \end{enumerate}
 
@@ -818,37 +888,54 @@ players can decrypt this data and hence the associated plaintext should not be
 used as a part of the checks in $\texttt{valid}$.
 
 We define a specific protocol that uses consensus when generating global
-(secret shared) random numbers, which we denote $\consrng{n}{k}$. It is defined
-as follows. Let the parties participating in the protocol be ${\{P_i\}}_{i \in
-\mathcal{I}}$, such that each party $P_i$ has a public and private keypair
-where the public key is denoted $\kappa_i$. Each party $P_i$ has input
-$c_0^{(i)}, \ldots, c_{t-1}^{(i)}$, which are the coefficients of a polynomial
-that is to be used for a threshold $t$ sharing of the number $c_0^{(i)} \in
-\F$. They then do the following to construct their input for a consensus
-protocol $\rho$:
+(secret shared) random numbers, which we denote $\consrng{n}{k}$. The purpose
+of consensus during the random number generation protocol is to pick a subset
+of players that contributed correctly to the protocol. Thus a decision value
+will contain shares from a subset of players along with ZK proofs that each of
+the sharings is valid (these are needed because the shares will be encrypted
+for the target players as they should be kept private).
+
+The consensus protocol is defined as follows. Let the parties participating in
+the protocol be ${\{P_i\}}_{i \in \mathcal{I}}$, such that each party $P_i$ has
+a public and private key-pair where the public key is denoted $\kappa_i$. Each
+party $P_i$ has input $c_0^{(i)}, \ldots, c_{t-1}^{(i)}$, which are the
+coefficients of a polynomial that is to be used for a threshold $t$ sharing of
+the number $c_0^{(i)} \in \F$. They then do the following to construct their
+input for a consensus protocol $\rho$:
 
 \begin{enumerate}
-	\item Create $n$ shares $r_1^{(i)}, \ldots, r_n^{(i)}$ from the
-		coefficients $c_0^{(i)}, \ldots, c_{t-1}^{(i)}$.
-	\item Obtain the set of encrypted values $e_i = \{e_1^{(i)},
-		\ldots, e_n^{(i)}\}$, where $e_j^{(i)} =
-		\encrypt{\kappa_j}{r_j^{(j)}}$.
-	\item Create a ZK proof $\zeta_i$ that asserts the following:
+	\item Create $n$ shares ${\left(r_j^{(i)}\right)}_{j \in \mathcal{I}}$ from
+		the coefficients $c_0^{(i)}, \ldots, c_{t-1}^{(i)}$, i.e.
+		\begin{align}\label{eq:conszk}
+			r_j^{(i)} = \sum_{l=0}^{t-1} c_l^{(i)}j^l
+			\quad
+			\forall j \in \mathcal{I}.
+		\end{align}
+	\item Obtain the encrypted values $e_i = {\left(e_j^{(i)}\right)}_{j \in
+		\mathcal{I}}$, where $e_j^{(i)} = \encrypt{\kappa_j}{r_j^{(i)}}$.
+	\item Create a ZK proof $\pi_i$ that attests to the validity of the sharing
+		and encryptions. Specifically, let $R$ be the relation with elements
+		$(\phi, w)$ where the witness $w$ consists of a private key for the
+		encryption scheme and $t$ elements of $\F$ that represent the
+		coefficients of a sharing. The associated statement $\phi$ asserts that
 		\begin{itemize}
 			\item $e_j^{(i)} = \encrypt{\kappa_j}{r_j^{(i)}}$ for all
 				$j \in \mathcal{I}$.
-			\item The values $r_1^{(i)}, \ldots, r_n^{(i)}$ constitute
-				a valid and consistent sharing of some value in $\F$ (in this
-				case, that value is $c_0^{(i)}$).
+			\item The values ${\left(r_j^{(i)}\right)}_{j \in \mathcal{I}}$
+				constitute a valid and consistent sharing of some value in $\F$
+				(in this case, that value is $c_0^{(i)}$), i.e.\ that
+				Eq.~\eqref{eq:conszk} holds.
 		\end{itemize}
+		Then $\pi_i \leftarrow \texttt{prove}(R, \sigma, \phi, w)$ where
+		$(\sigma, \tau) \leftarrow \texttt{setup}(R)$.
 \end{enumerate}
 
-A possible decision value for $\rho$ is a set ${\{(e_i, \zeta_i)\}}_{i \in I}$
+A possible decision value for $\rho$ is a set ${\{(e_i, \pi_i)\}}_{i \in I}$
 where $I \subset \mathcal{I}$. The predicate is $\texttt{valid}_\texttt{RNG}$,
-which is true precisely when $|I| > t$ and $\texttt{verify}(\zeta_i) = 1$ for
-all $i \in I$. The output for each party is the decrypted set of shares which
-were encrypted for their public key; namely the output for party $P_i$ is
-${(r_i^{(j)})}_{j \in I}$.
+which is true precisely when $|I| > t$ and $\texttt{verify}(R, \sigma, \phi,
+\pi_i) = 1$ for all $i \in I$. The output for each party is the decrypted set
+of shares which were encrypted for their public key; namely the output for
+party $P_i$ is ${(r_i^{(j)})}_{j \in I}$.
 
 Part of the use of the ZK proofs here is to achieve the goal of having
 \textit{verifiable secret sharing}, for which the more common solution is to
@@ -860,42 +947,16 @@ solutions allows each party to identify when a dealer has not consistently
 shared their secret, but each party needs to be aware of this and hence they
 need to agree on dealers that are faulty. This usually requires additional
 rounds of broadcasting complaints (if there are any), and often doing so using
-a secure broadcast channel%
-\footnote{%
-	In this context, \textit{secure broadcast} means secure in the sense of our
-	security definitions, and not in the intuitive encrypted messaging sense; a
-	secure broadcast can be thought of as a protocol where each honest party
-	outputs the same value. This is obviously not achieved by a na\"{\i}ve
-	approach of simply sending the message to everyone, as the adversary may
-	send different messages to different parties.
-}.
-Using the more powerful ZK proofs, in which it is proved that all of the
-encrypted shares are consistent, allows each party to check that every other
-parties' share is correct in the course of the consensus algorithm. This means
-that upon achieving consensus, no further coordinating or complaint
-broadcasting is needed as the only decision values that are selected are those
-for which the required threshold of parties agreed that $\texttt{valid}$
-returned true. Using $\consrng{n}{k}$ thus only introduces the synchronicity
-required for the consensus algorithm, which for example in the case of
-Tendermint~\cite{buchman_2018} is only partial synchronicity.
-
-This consensus protocol will be used as a subprotocol for some of our SMPC
-primitives, and so we will provide some brief justification as to why they can
-be used securely. Recall that the two key properties that
-definition~\ref{def:sec} captures are secrecy and correctness. The former
-requires that the messages do not leak any information, and we can see that
-this is the case given that the proposed values only contain encrypted data, ZK
-proofs and public keys, all of which do not leak information given appropriate
-assumptions. The latter requires that the adversary cannot influence the
-output. This is not strictly attained, for example when using
-Tendermint~\cite{buchman_2018} consensus a party that is controlled by the
-adversary can propose a block and hence influence what is in it, but to counter
-this we will just combine the consensus protocol with other protocols to arrive
-at adequate security for the larger protocol that uses consensus. Regarding the
-computation model, we require that a subprotocol instance can behave like a
-``round'' and have a definite completion time. This is ensured for protocols
-that want to use consensus by the termination property of the consensus
-protocol.
+a secure broadcast channel. Using the more powerful ZK proofs, in which it is
+proved that all of the encrypted shares are consistent, allows each party to
+check that every other parties' share is correct in the course of the consensus
+algorithm. This means that upon achieving consensus, no further coordinating or
+complaint broadcasting is needed as the only decision values that are selected
+are those for which the required threshold of parties agreed that
+$\texttt{valid}(R, \sigma, \phi, \pi_i)$ succeeded. Using $\consrng{n}{k}$ thus
+only introduces the synchronicity required for the consensus algorithm, which
+for example in the case of Tendermint~\cite{buchman_2018} is only partial
+synchronicity.
 
 \section{ECDSA Signature Algorithm}
 
@@ -1014,33 +1075,36 @@ they are proven.
 \section{SMPC Primitives}
 
 In this section we will define the primitives which constitute our SMPC
-protocols and prove their security. It is clear that the security model
-trivially applies when a protocol is ``local''; i.e.\ does not involve any
-exchange of messages. This means that we need only consider proofs of security
-for those protocols that involve sending messages. In our case, these protocols
-are open (Section~\ref{sec:open}), random number generation
-(Section~\ref{sec:rng}), random zero generation (Section~\ref{sec:rzg}), and
-random keypair generation (Section~\ref{sec:rkpg}).
+protocols and prove their security. It is clear that security as defined in
+Definition~\ref{def:sec} trivially applies when a protocol is ``local''; i.e.\
+does not involve any exchange of messages. This means that we need only
+consider proofs of security for those protocols that involve sending messages.
+In our case, these protocols are open (Section~\ref{sec:open}), random number
+generation (Section~\ref{sec:rng}), random zero generation
+(Section~\ref{sec:rzg}), and random key-pair generation
+(Section~\ref{sec:rkpg}).
 
 \subsection{Open}\label{sec:open}
 
-At some points during a computation on shared values, and almost certainly at
-the end of a larger protocol, we will want to reveal the secret corresponding
-to the underlying shares. We call this revealing operation ``Opening''.
-Probably the most obvious ideal functionality for this would be defined as
+When we reveal the secret corresponding to a sharing, we call this operation an
+\textit{Open}. We will present two protocols for this operation, each
+warranting their use in different situations. The difference between them lies
+in how the ideal functionality is defined; one will provide security of the
+input shares, and the other will not.
+
+Probably the most obvious ideal functionality for open would be defined as
 follows: $f$ takes as input the shares of the secret from each party and gives
 as output the corresponding secret $s$ to each party. However, if we were to
 try to achieve this with the simplest and most obvious protocol, everyone
 broadcasting their share and then reconstructing, we would not be able to prove
-security in the framework we are using because any simulator, knowing only the
-corrupted shares and the secret, would not be able to produce the shares of the
-honest parties which it would have to as these are messages that are sent
-during the protocol. The interpretation of this is clear: this protocol is not
+security against Definition~\ref{def:sec} because any simulator, knowing only
+the corrupted shares and the secret, would not be able to produce the shares of
+the honest parties which it would have to as these are messages that are sent
+during the protocol.  The interpretation of this is clear: this protocol is not
 secure because it leaks private information (the input shares) from the honest
 parties, or alternatively, because the ideal functionality specifies that this
 private information is not revealed. The two solutions for these two
-perspectives leads to two different protocols which warrant use in their own
-contexts.
+perspectives leads to the two different protocols as follows.
 
 First, from the perspective that the simple broadcast protocol should not
 reveal the input shares, the solution is to improve the protocol so that this
@@ -1049,32 +1113,31 @@ generating a random $k$-sharing of $0 \in \F$ and adding that to the shares
 before broadcasting them; now the messages sent during the protocol are for a
 \textit{random} sharing of the secret, as opposed to the specific sharing that
 the parties started the protocol with, and a simulator can now generate these
-messages with the right distribution knowing only the secret. Second, from the
-perspective that the ideal functionality is too restrictive, we can modify it
-to also output the shares themselves along with the secret; a simulator for
-this ideal functionality can now easily produce an appropriate view for the
-simple broadcast protocol.
+messages with the right distribution knowing only the secret. This solution
+will be used in our multiplication protocol, as in~\cite{gjkr96}. The reason
+that this will be needed here is that after multiplying our shares, they will
+now be points on a degree $2k$ polynomial that is known to be the product of
+two $k$ degree polynomials. This causes there to be enough structure in the
+shares that if they are revealed one can often efficiently find the original
+two secrets.
 
-We can see that in either of the above cases the key difference is whether or
-not the original shares are considered safe to reveal. Often they are safe to
-reveal, but there are cases where they are not. One example in which they are
-not is having $k$-sharings of two private values $a, b \in \F$, and each party
-multiplies their shares locally to get a $2k$-sharing of $ab$ and then opening
-this value. While it may be ``safe'' to reveal $ab$ (e.g.\ if $a$ is a secret
-but $b$ is an unknown uniformly random value), it is well known that this $2k$
-sharing is defined by a degree $2k - 1$ polynomial that is not uniformly random
-(an easy reason that this is the case is that given it is the product of two
-polynomials, it can't possibly be irreducible), and in fact exhibits enough
-structure that knowing the shares, one can often easily determine both $a$ and
-$b$ individually.
+Second, from the perspective that the ideal functionality is too restrictive,
+we can modify it to also output the shares themselves along with the secret; a
+simulator for this ideal functionality can now easily produce an appropriate
+view for the simple broadcast protocol. We will not use this protocol in this
+\paper{}, but it is included anyway for completeness as the security proof is
+trivial.
+
+\subsubsection{Reed-Solomon Decoding}
 
 With the above considerations in mind, we will define two protocols for open,
 one for each of the cases. In both cases, we will use a Reed-Solomon (RS)
 decoding technique, such as Berlekamp-Welch~\cite{welch_1986} or
 Gao's~\cite{gao_2003}, to remain fault tolerant in the presence of corrupt
-parties broadcasting incorrect shares. For an $(n, k)$ RS code (i.e. $n, k$
-Shamir secret sharing) these algorithms are able to detect when there are up to
-$d = n - k + 1$ errors and correct up to $\lfloor \frac{d}{2} \rfloor$ errors%
+parties broadcasting incorrect shares. This idea was first introduced
+in~\cite{ms81}. For an $(n, k)$ RS code (i.e. $n, k$ Shamir secret sharing)
+these algorithms are able to detect when there are up to $d = n - k + 1$ errors
+and correct up to $\lfloor \frac{d}{2} \rfloor$ errors%
 \footnote{%
 	Note that these algorithms are also able to locate the errors when they are
 	corrected, which in our context means that we would be able to identify
@@ -1082,7 +1145,68 @@ $d = n - k + 1$ errors and correct up to $\lfloor \frac{d}{2} \rfloor$ errors%
 }.
 Notice that RS decoding allows us to recover the underlying polynomial, and so
 this means that we not only obtain the secret for our sharing but also all of
-the other shares of every other party.
+the other shares of every other party. More precisely, we can define an RS
+decoding algorithm as having the following input/output relationship:
+
+\begin{itemize}
+	\item Input: A codeword (i.e.\ shares) $(x_1, \ldots, x_n) \in \F^n$.
+	\item Output: The message polynomial $c_0 + c_1 x + \cdots + c_{k-1}
+		x^{k-1}$, i.e.\ a polynomial of degree $k-1$ that satisfies
+		\begin{align*}
+			x_i = \sum_{j=0}^{k-1} c_j x^j \quad \forall j \in \seq{n},
+		\end{align*}
+		or ``Decoding failure''.
+\end{itemize}
+
+Note that the input for the RS decoding algorithm is \textit{all} of the shares
+of the parties. If we were to na\"\i{}vely achieve this in practice, we could
+have a timeout for receiving all of the shares, and then once the timeout has
+expired we could set the missing shares to arbitrary values and then run the
+protocol. However, we aim to avoid timeouts, and so we will present a simple
+algorithm that can be used to reconstruct a secret using RS decoding that
+avoids the need for a timeout. The idea is as follows. As soon as a party has
+at least $n - \lfloor \frac{d}{2} \rfloor$ shares, the decoding algorithm will
+be able to successfully recover the secret. This is achieved by setting the yet
+to be received messages as any value. If there are no more than $\lfloor
+\frac{d}{2} \rfloor$ adversaries (and this category also includes
+offline/unresponsive players), then the round is guaranteed to terminate
+according to any termination assumptions of \textit{only the honest players}.
+This means that in practice we will not need to wait for all messages (which is
+not lively) and also will have no need for timeouts.
+
+Concretely, the following algorithm describes how the honest parties can
+reconstruct the secret during an open using RS decoding.
+\begin{enumerate}
+	\item Wait until $n - \lfloor \frac{d}{2} \rfloor$ shares have been
+		received.
+	\item Starting from the previous step and repeating on every new share
+		until the RS decoding algorithm succeeds: set the shares of the parties
+		for which no shares have yet been received as $0$, and run the
+		reconstruction algorithm.
+\end{enumerate}
+We will explain why this will eventually allow the reconstruction of the secret
+value in the presence of no more than $\lfloor \frac{d}{2} \rfloor$ corrupted
+parties. First, since we assume that we will receive all messages from the
+honest parties, we are guaranteed to receive at least $n - \lfloor \frac{d}{2}
+\rfloor$ messages. Next, note that once we have all of the honest parties'
+shares, the RS decoding algorithm is guaranteed to succeed by definition. These
+two facts ensure that the reconstruction will eventually terminate
+successfully. If any corrupted parties shares have been modified and are
+received before all of the honest parties' shares, this will simply result in
+some initial decoding failures.
+
+This technique for RS decoding without using timeouts is mainly a practical
+consideration, and is included as it aligns with the motivations for the design
+of our protocols. For the purposes of the security proofs for open, however,
+this technique is not needed. This is because in Canetti's security framework,
+the protocols proceed in rounds, and everyone receives the messages for each
+round before moving on to the next round. This means that honest parties will
+have all honest shares at the end of the round in which they all send them, and
+with all honest shares they need only run the RS decoding algorithm once to
+successfully reconstruct the secret (possibly setting missing malicious shares
+to an arbitrary value).
+
+\subsubsection{Share Revealing Open}
 
 The protocol implementing the basic ideal functionality (that outputs the
 secret as well as all of the input shares) $\fOpen{n,k}$ is denoted by
@@ -1111,6 +1235,8 @@ $\piOpen{n,k}$ and is defined as follows.
 	their shares.
 \end{proof}
 
+\subsubsection{Share Hiding Open}
+
 The protocol implementing the stricter ideal functionality $\fSOpen{n,k}$ is
 denoted by $\piSOpen{n,k}$ and is the same as the simple version, except before
 revealing shares for reconstruction, the sharing is randomised by adding a
@@ -1128,64 +1254,27 @@ protocol $\piSOpen{n,k}$ is defined as follows.
 		RS decoding algorithm and outputs the result.
 \end{enumerate}
 
-\begin{remark}\label{rem:openSync}
-	We make a note here on synchronicity regarding the use of a RS decoding
-	technique. The main feature of the security definition that relates to
-	synchronicity is the fact that the protocol proceeds in rounds and each
-	round has to be completed before moving on to the next. This would either
-	mean waiting for \textit{all} messages from other players, or using a
-	timeout after which any messages that have not arrived are given some
-	default value to be used instead. However, these alternatives need not be
-	used for the final round of each open protocol in which each party sends
-	its share to every other party. This is because as soon as a party has at
-	least $n - \lfloor \frac{d}{2} \rfloor$ shares, the decoding algorithm will
-	be able to successfully recover the secret, setting the yet to be received
-	messages as any value. This means that if there are no more than $\lfloor
-	\frac{d}{2} \rfloor$ adversaries (and this category also includes
-	offline/unresponsive players), then the round is guaranteed to terminate
-	according to any termination assumptions of \textit{only the honest
-	players}. This means that in practice we will not need to wait for all
-	messages (which is not lively) and also will have no need for timeouts.
-
-	Concretely, the following is a way in which the honest parties can be sure
-	to terminate without having to have synchronised clocks or use timeouts.
-	\begin{enumerate}
-		\item Wait until $n - \lfloor \frac{d}{2} \rfloor$ shares have been
-			received. This is guaranteed to happen as there are at least this
-			many honest parties.
-		\item Starting from the previous step and repeating on every new share
-			until a reconstruction is possible: set the shares of the parties
-			for which no shares have yet been received as $0$, and run the
-			reconstruction algorithm.
-	\end{enumerate}
-	Repeating the last step will eventually terminate with the correct value.
-	First, notice that it will never yield an incorrect value. This is because
-	no reconstructions are attempted until there are at least $n - \lfloor
-	\frac{d}{2} \rfloor$ values, which means at most $\lfloor \frac{d}{2}
-	\rfloor$ of them will be from corrupt parties, and therefore in total there
-	will be at most $d$ incorrect shares (including the ones that have not yet
-	been received). Thus the RS decoding algorithm will always be able to
-	detect that there are errors. To see that it will always terminate, we need
-	only realise that as soon as we have $n - \lfloor \frac{d}{2} \rfloor$
-	correct values the decoding will succeed, and this will eventually happen
-	because there are at least this many honest parties.
-\end{remark}
-
-\begin{remark}
-	When $k = \frac{2n}{3}$, which occurs during multiplication of two
-	$k$-sharings when $k = \frac{n}{3}$, we see that this places the security
-	requirement at $t < \frac{n}{6}$ (but the protocol will still be safe with
-	abort for up to $t < \frac{n}{3}$). We could achieve a more relaxed $t <
-	\frac{n}{3}$ requirement if we augment the opening process with ZK proofs
-	that the shares a player broadcasts are correct. In this case, as soon as
-	$k$ shares with valid proofs have been received, it is safe to use this
-	subset to reconstruct the secret and proceed.
-\end{remark}
-
 \begin{theorem}\label{thm:so}
 	Let $t$ be such that both $t \le \frac{n - k + 1}{2}$ and $t < k - 1$. Then
 	the protocol $\piSOpen{n,k}$ $t$-securely evaluates $\fSOpen{n,k}$.
 \end{theorem}
+
+\begin{remark}
+	We will see later that if we invoke the multiplication protocol with two
+	input sharings that have reconstruction threshold $k$, we will need to
+	invoke $\piSOpen{n,2k}$. This means that if $k$ is a large enough fraction
+	of $n$, the restriction on $t$ will be due to the RS decoding restriction,
+	$t \le \frac{n - k + 1}{2}$, as opposed to the sharing restriction $t < k -
+	1$. For example, when $k = \frac{n}{3}$, we will require that $t <
+	\frac{n}{6}$. One way to overcome this limitation is to use verifiable
+	secret sharing (e.g.\ Pedersen's~\cite{p91a}), which allows each party to
+	determine if a given share is valid in isolation from the others. Thus if
+	the parties have the Pedersen commitments for the shares they are opening,
+	RS decoding is not needed and we will only have the sharing restriction $t
+	< k - 1$. To see how this can be applied in the case of multiplication,
+	see~\cite{gjkr96} and~\cite{cmi93}. We leave making this improvement to our
+	protocols as future work.
+\end{remark}
 
 \begin{remark}
 	Note that we require $t < k - 1$ instead of the usual $k$. This is because
@@ -1263,14 +1352,14 @@ protocol $\piSOpen{n,k}$ is defined as follows.
 
 The protocols $\piOpen{n,k}$ and $\piSOpen{n,k}$ reveal the shared secret to
 all players. However, sometimes we will only want to reveal the secret to a
-specific player. In this case we use a \textit{directed open} protocol. The
-only difference in this case is that instead of sending the shares to everyone,
-each player sends their share to the specified player only. We denote the
-directed version of $\piOpen{n,k}$ as $\piDOpen{n,k,i}$ and the directed
-version of $\piSOpen{n,k}$ as $\piSDOpen{n,k,i}$, where in each case $i \in
-\mathcal{I}$ is the index of the player which outputs the secret. The ideal
-functionalities $\fDOpen{n,k,i}$ and $\fSDOpen{n,k,i}$ are also defined
-correspondingly.
+specific player. This occurs in the protocol $\piRNG{n,k}$. In this case we use
+a \textit{directed open} protocol. The only difference in this case is that
+instead of sending the shares to everyone, each player sends their share to the
+specified player only. We denote the directed version of $\piOpen{n,k}$ as
+$\piDOpen{n,k,i}$ and the directed version of $\piSOpen{n,k}$ as
+$\piSDOpen{n,k,i}$, where in each case $i \in \mathcal{I}$ is the index of the
+player which outputs the secret. The ideal functionalities $\fDOpen{n,k,i}$ and
+$\fSDOpen{n,k,i}$ are also defined correspondingly.
 
 The security of these directed open protocols is summarised in the following
 two theorems; they enjoy the same security as their undirected counterparts.
@@ -1312,16 +1401,16 @@ be uniformly random.
 The main challenge of using this protocol in the presence of malicious
 adversaries is that of having the honest parties select the same subset of
 shares to use in the sum; not doing so would lead to the honest parties holing
-an inconsistent sharing. The way that a corrupted node can cause this to happen
-is simply sending their shares to a subset of the parties, and not sending any
-to the others. One possible solution to this is to have parties also send
-acknowledgement messages upon receiving correct shares on a secure broadcast
-channel~\cite{gjkr96}. However, since we are not using a secure broadcast
-channel we use an alternative solution: a consensus protocol. The idea is that
-once consensus is achieved, all of the honest parties will agree on which
-subset of shares from other parties to include in the sum, and will therefore
-end up with consistent shares of the same global random number. The protocol is
-denoted $\piBRNG{n,k}$ proceeds as follows:
+an inconsistent sharing. The way that a corrupted party can cause this to
+happen is simply sending their shares to a subset of the parties, and not
+sending any to the others. One possible solution to this is to have parties
+also send acknowledgement messages upon receiving correct shares on a secure
+broadcast channel~\cite{gjkr96}. However, since we are not using a secure
+broadcast channel we use an alternative solution: a consensus protocol. The
+idea is that once consensus is achieved, all of the honest parties will agree
+on which subset of shares from other parties to include in the sum, and will
+therefore end up with consistent shares of the same global random number. The
+protocol is denoted $\piBRNG{n,k}$ proceeds as follows:
 
 \begin{enumerate}
 	\item For all $i \in \mathcal{I}$, player $P_i$ picks $r_i \in \F$
@@ -1363,7 +1452,14 @@ corrupted party. If this is the case, they are in fact able to realise the
 rushing property and can pick their own sharing to be such that they end up
 with any share of their choosing. This clearly violates the property that the
 sharing of the random number is itself random. In order to overcome this
-technical difficulty, we will not prove that $\piBRNG{n,k}$ is secure in
+technical difficulty%
+\footnote{%
+	There may be a clever way to modify the ideal functionality so that it
+	still faithfully represents the goal of random number generation but allows
+	this biasing of the shares by the adversary. However, the authors are not
+	aware of a way to do this, or whether it is safe to allow the biasing of
+	the shares.
+}, we will not prove that $\piBRNG{n,k}$ is secure in
 Canetti's security framework but rather just prove its key properties that will
 be relevant when we use $\piBRNG{n,k}$ to construct an unbiased protocol
 $\piRNG{n,k}$ that will capable of realising the ideal functionality
@@ -1667,38 +1763,39 @@ for $\piRNG{n,k}$, and so is omitted.
 	is equal to the share corresponding to index $0 \in \F$).
 \end{remark}
 
-\subsection{Random Keypair Generation}\label{sec:rkpg}
+\subsection{Random Key-pair Generation}\label{sec:rkpg}
 
 Random key pair generation is again very similar to random number generation
 defined in Section~\ref{sec:rng}, except instead of only obtaining shares of a
 global random number, the parties also obtain the public key that corresponds
 to the shared random number (private key). Specifically, the ideal
 functionality $\fRKPG{n,k}$ takes no inputs and outputs to each party $P_i$ a
-share $x_i$ of some uniformly random $x \in \F$ and $y$ such that $y = g^x \in
-\G$ where $\G$ is a group with generator $g$.  Additionally, to enable the
-proof of security to work each party will also output $g^{x_i}$ for each $i \in
-\mathcal{I}$. This modification will be discussed after presenting the
-passively secure protocol ${\piRKPG{n,k}}'$ for $\fRKPG{n,k}$. We begin with
-this passively secure protocol and then discuss how it can be augmented to
-achieve active security later. The protocol is defined as follows.
+share $x_i$ of some uniformly random $x \in \F$ and $y$ such that $y = xG \in
+\G$ where $\G$ is a group with generator $G$, written with additive notation.
+Additionally, to enable the proof of security to work each party will also
+output $x_1 G$ for each $i \in \mathcal{I}$. This modification will be
+discussed after presenting the passively secure protocol ${\piRKPG{n,k}}'$ for
+$\fRKPG{n,k}$. We begin with this passively secure protocol and then discuss
+how it can be augmented to achieve security against malicious adversaries
+later. The protocol is defined as follows.
 
 \begin{enumerate}
 	\item The parties invoke $\piRNG{n,k}$, so that party $P_i$ receives the
 		share $x_i$.
 
-	\item\label{enum:rkpgPassBC} Each party $P_i$ sends $g^{x_i}$ to every
-		other party.
+	\item\label{enum:rkpgPassBC} Each party $P_i$ sends $x_i G$ to every other
+		party.
 
-	\item Each party then reconstructs $g^x$ ``in the exponent'', along with
-		$g^{x_i}$ for each $i \in \mathcal{I}$. These, along with the share
-		$x_i$ constitute the output of the protocol for player $P_i$.
+	\item Each party then reconstructs $xG$ ``in the exponent'', along with
+		$x_i G$ for each $i \in \mathcal{I}$. These, along with the share $x_i$
+		constitute the output of the protocol for player $P_i$.
 \end{enumerate}
 
-The reason that the public values $g^{x_i}$ for each $i \in \mathcal{I}$ are
+The reason that the public values $x_i G$ for each $i \in \mathcal{I}$ are
 included in the output for each party is to allow the simulator to construct a
 consistent view. If the simulator did not know these values, then under
 Assumption~\ref{ass:dlog} it would have no hope of constructing $g_i \in \G$
-such that $g_i = g^{x_i}$ for each $i \in \mathcal{I}_h$. However, for the same
+such that $g_i = x_i G$ for each $i \in \mathcal{I}_h$. However, for the same
 reason the discrete logarithm problem also implies that learning each $g_i$
 should not be a concern, and so we are happy to include them in the output of
 the protocol. We will formalise this reasoning somewhat after presenting the
@@ -1716,20 +1813,20 @@ security theorem.
 \end{proof}
 
 We now argue that for a $k$-sharing of $x \in \F$, knowing a subset of less
-than $k$ of these shares and $g^{x_i}$ for all shares $x_i$, as well as knowing
-$g^x$, it is not possible to discover $x$ if the discrete logarithm problem is
+than $k$ of these shares and $x_i G$ for all shares $x_i$, as well as knowing
+$xG$, it is not possible to discover $x$ if the discrete logarithm problem is
 hard. This is summarised in the following theorem.
 
 \begin{theorem}
-	Let $\G$ be a group of size at least $2^b$ with generator $g$ and prime
+	Let $\G$ be a group of size at least $2^b$ with generator $G$ and prime
 	order, such that $\F$ is the finite field associated with this prime. Let
 	$x \in \F$ be uniformly random, and $x_1, \ldots, x_n$ be a uniformly
 	random $k$-sharing of $x$ where $k, n \in \N$ and $k \le n$. Let $t \in \N$
 	and $I \subset \seq{n}$ be given such that $t < k $ and $|I| = t$. Suppose
 	that a polynomial time Turing machine $\mathcal{D}$ takes as input $\G$,
-	$g$, ${(x_i)}_{i \in I}$, ${(g^{x_i})}_{i \in \seq{n}}$ and $g^x$, and
-	outputs $z \in \F$. Then if Assumption~\ref{ass:dlog} holds, it follows
-	that for all such $\mathcal{D}$, $\P(z = x)$ is negligible in $b$.
+	$G$, ${(x_i)}_{i \in I}$, ${(x_i G)}_{i \in \seq{n}}$ and $xG$, and outputs
+	$z \in \F$. Then if Assumption~\ref{ass:dlog} holds, it follows that for
+	all such $\mathcal{D}$, $\P(z = x)$ is negligible in $b$.
 \end{theorem}
 
 \begin{proof}
@@ -1740,10 +1837,10 @@ hard. This is summarised in the following theorem.
 	end, let $y \in \G$ be arbitrary. Pick $t$ independent and uniformly random
 	elements of $\F$ $x_1, \ldots, x_t$, and $k - t - 1$ independent and
 	uniformly random elements of $\G$, labelled $g_{t+1}, \ldots, g_{k-1}$.
-	Similarly label $g_i = g^{x_i}$ for each $i \in \seq{t}$. Also extend the
+	Similarly label $g_i = x_i G$ for each $i \in \seq{t}$. Also extend the
 	labels of $x_i$ so that for $i \in \{t+1, \ldots, k-1\}$ $x_i$ is the
-	unique value such that we have $g_i = g^{x_i}$ and also define $x_0$ to be
-	the unique value that satisfies $y = g^{x_0}$. Note that these values are
+	unique value such that we have $g_i = x_i G$ and also define $x_0$ to be
+	the unique value that satisfies $y = x_0 G$. Note that these values are
 	well defined but not known by any polynomial time Turing machine, they are
 	merely defined for convenience of exposition. From
 	Theorem~\ref{thm:shareCoeffLO} we know that there exist values
@@ -1757,12 +1854,12 @@ hard. This is summarised in the following theorem.
 	correspond to a $k$-sharing that is consistent with the shares $x_0,
 	\ldots, x_{k-1}$. Using these values we can compute
 	\begin{align*}
-		g^{c_i} = h_i = \prod_{j=0}^{k-1} {g_j}^{\lambda_j^{(i)}}
+		c_i G = h_i = \sum_{j=0}^{k-1} \lambda_j^{(i)} g_j
 	\end{align*}
 	for all $i \in \seqZ{k-1}$. This in turn allows us to compute the remaining
 	shares in the exponents; we can compute
 	\begin{align*}
-		g_i = \prod_{j=0}^{k-1} {h_j}^{i^j}
+		g_i = \sum_{j=0}^{k-1} i^j h_j
 		\quad
 		\forall i \in \{k, \ldots, n\}.
 	\end{align*}
@@ -1770,28 +1867,29 @@ hard. This is summarised in the following theorem.
 	consistent sharing of $x_0$ and agree with the subset $x_1, \ldots, x_t$.
 	We may now run $\mathcal{D}$ with input $\G$, $g$, ${(x_i)}_{i \in
 	\seq{t}}$, ${(g_i)}_{i \in \seq{n}}$, and $y$. The output is $z$ where
-	$\P(z = x_0)$ with non-negligible probability. Since $y = g^{x_0}$, this
+	$\P(z = x_0)$ with non-negligible probability. Since $y = x_0 G$, this
 	completes the proof.
 \end{proof}
 
 We now discuss how to augment ${\piRKPG{n,k}}'$ to be secure in the presence of
-an active adversary. This is not too difficult to achieve; the only part of the
-passively secure protocol in which the adversary can send (modified) messages
-is in step~\ref{enum:rkpgPassBC}. This can hinder the reconstruction of the
-global public key and also the public keys corresponding to the shares if there
-is no way to detect that these values are incorrect. Thus, we need only include
-a way to ensure that honest parties can detect correct values, and after
-receiving $k$ correct values they will be able to perform the reconstruction.
-To achieve this required detection, we will augment $\piRNG{n,k}$ to output,
-along side the usual random shares, a perfectly hiding commitment to each of
-the shares of the parties. Then, ${\piRKPG{n,k}}'$ is augmented by also
-submitting in step~\ref{enum:rkpgPassBC} a zero knowledge proof that has the
-perfect zero knowledge property that the value they sent corresponds to the
-commitment to their share. This will enable honest parties to detect which
-broadcasted values are correct. The associated simulator for the proof would
-then be able to work as previously, except to generate the ZK proof messages it
-can leverage the perfect zero knowledge property. The augmented protocol
-$\piRKPG{n,k}$ is as follows.
+an malicious adversary. This is not too difficult to achieve; the only part of
+the passively secure protocol in which the adversary can send (modified)
+messages is in step~\ref{enum:rkpgPassBC}. This can hinder the reconstruction
+of the global public key and also the public keys corresponding to the shares
+if there is no way to detect that these values are incorrect. Thus, we need
+only include a way to ensure that honest parties can detect correct values, and
+after receiving $k$ correct values they will be able to perform the
+reconstruction.  To achieve this required detection, we will augment
+$\piRNG{n,k}$ to output, along side the usual random shares, a perfectly hiding
+commitment to each of the shares of the parties. Then, ${\piRKPG{n,k}}'$ is
+augmented by also submitting in step~\ref{enum:rkpgPassBC} a zero knowledge
+proof from a ZK scheme with completeness, perfect zero knowledge and
+computational soundness that the value they sent corresponds to the commitment
+to their share. This will enable honest parties to detect which sent values are
+correct. The associated simulator for the proof would then be able to work as
+previously, except to generate the ZK proof messages it can leverage the
+perfect zero knowledge property. The augmented protocol $\piRKPG{n,k}$ is as
+follows.
 
 \begin{enumerate}
 	\item The parties invoke the augmented RNG protocol ${\piRNG{n,k}}'$, so
@@ -1806,6 +1904,16 @@ $\piRKPG{n,k}$ is as follows.
 		$g^{x_i}$ for each $i \in \mathcal{I}$. These, along with the share
 		$x_i$ constitute the output of the protocol for player $P_i$.
 \end{enumerate}
+
+To achieve this, one could use Pedersen's verifiable secret sharing~\cite{p91a}
+to obtain the perfectly hiding commitments of the shares%
+\footnote{%
+	Pedersen's scheme actually only involves constructing and sending
+	commitments to the coefficients of the sharing polynomial, but it is easy
+	to obtain commitments to the shares from these.
+},
+and a ZKSNARK construction, such as in~\cite{g16}, for the ZK proofs. We leave
+the full details of this augmentation to future work.
 
 \subsection{Local Arithmetic}
 
@@ -1854,37 +1962,18 @@ towards is to be able to perform an ECDSA signature where the private key is
 distributed among the parties as a shared secret. To do this, we will construct
 the SMPC protocols that will be sufficient to perform the signature. We will
 then be able to leverage the composability property of the security framework
-to be able to compose our building blocks together in a secure way. However,
-this security definition does not capture all of the security properties that
-we seek in general. For instance, it does not capture the security of our
-secret (in the context of Shamir Secret Sharing). We can see this by
-considering the following obviously insecure protocol for multiplying two
-secrets and then immediately opening the result: simply open the two sharings
-and then multiply them together locally. The reason that this continues to
-satisfy security as defined in Definition~\ref{def:sec}, despite being
-intuitively insecure, is that it is evaluating an ideal functionality that we
-do not actually want (the ideal functionality that we want simply takes the
-input shares and gives the product of the secrets). Rather, it evaluates
-precisely the secure functionality defined by this example protocol: take the
-input shares and give the product of the secrets \textit{but also the input
-secrets themselves} (the latter because of the opens that are performed in the
-protocol description). Now, it becomes clear that the reason this example
-protocol is secure under Definition~\ref{def:sec}, but not intuitively, is
-because the actual protocols explicitly describes itself as revealing
-information. We can see that the problem in this case arises because of opening
-values that should not be revealed. The solution to this is to make sure that
-whenever we perform an open during our protocol, the revealed value should be
-uniformly randomly distributed, so that nothing is ``learned'' from it. Because
-open is the only protocol that reveals information about secrets, as long as we
-make sure that we do this when constructing a protocol out of our primitive
-protocols, we can be sure that we are securely evaluating what we intend
-without worrying about exactly how we got there.
+to be able to compose our building blocks together in a secure way.
 
 \subsection{Multiply and Open}
 
 The ideal functionality $\fMulOpen{n,k}$ that represents the multiply and then
 open protocol takes as input two sets of shares for two field elements and
-gives as output to each party the product of these two secrets.
+gives as output to each party the product of these two secrets. The technique
+is the same as the multiplication protocol in~\cite{gjkr96}. There, and in our
+case, we don't need to multiply shares more than once in a row, which allows us
+to make use of this simpler protocol. If we wanted to achieve multiplication
+that could be performed as many times as we liked, there exist techniques such
+as in~\cite{bgw88} and~\cite{b91}.
 
 Let $a_\mathcal{I}$ and $b_\mathcal{I}$ be two $k$-sharings of respective field
 elements $a, b \in \F$. The protocol $\piMulOpen{n,k}(a_\mathcal{I},
@@ -1905,43 +1994,6 @@ threshold of the sharing would be too large for it to be possible to
 reconstruct the secret even with $n$ parties. The first requirement on $t$
 comes from $\piSOpen{n,2k}$, and the second requirement on $t$ is the usual one
 to disallow the adversary to reconstruct secrets.
-
-\subsection{Multiplication}
-
-The ideal functionality $\fMul{n,k}$ that represents the multiplication
-protocol takes as input two sets of shares for two field elements and gives as
-output to each party a share of the product of these two secrets. This
-protocol, along with addition, allows for in theory arbitrary arithmetic
-circuits and hence arbitrary computations. However, for complicated
-computations it is usually more efficient to use other more tailored protocols
-and primitives, as we will see is the case for ECDSA\@. The multiplication here
-protocol is included mainly for completeness.
-
-Let $a_\mathcal{I}$ and $b_\mathcal{I}$ be two $k$-sharings of respective field
-elements $a, b \in \F$. The protocol $\piMul{n,k}(a_\mathcal{I},
-b_\mathcal{I})$ is defined by
-\begin{align*}
-	r_\mathcal{I} &\leftarrow \piRNG{n,k}\\
-	c_\mathcal{I} &= a_\mathcal{I}b_\mathcal{I}\\
-	c'_\mathcal{I} &= c_\mathcal{I} + r_\mathcal{I}\\
-	c' &\leftarrow \piSOpen{n,2k}(c'_\mathcal{I})\\
-	c_\mathcal{I} &= c' - r_\mathcal{I}
-\end{align*}
-
-\begin{theorem}
-	Let $n \in \N$ and $k \le \frac{n}{2}$. Let $t$ be such that $t \le \frac{n
-	- 2k + 1}{2}$ and $t < k$. Then the protocol $\piMul{n,k}$ $t$-securely
-	evaluates $\fMul{n,k}$.
-\end{theorem}
-
-The restrictions on $k$ and $t$ are as for $\piMulOpen{n,k}$. The only value
-that we open is $c_\mathcal{I} + r_\mathcal{I}$, which is uniformly random and
-so preserves our desired security. Note that $r_\mathcal{I}$ has threshold $k$
-whereas $c_\mathcal{I}$ has threshold $2k$. This is not a problem as when we
-add two sharings of different thresholds, the resulting sharing has a threshold
-equal to the larger of the two. Additionally, we do not need to worry about any
-structure this may introduce in the shares, because the sharing is randomised
-by $\piSOpen{n,2k}$.
 
 \subsection{Inversion}
 

@@ -255,14 +255,15 @@ are almost the same.
 The rest of the \paper{} is structured as follows. First, background material
 including probability theory, Shamir secret sharing and computational
 assumptions will be presented. Next, the security framework to be used is
-described. The ECDSA signature algorithm will then be introduced, and how it
-will be achieved in SMPC, making comparisons to previous work. The rest of the
-paper is dedicated to the SMPC protocols and their security. Initially, the
-more primitive protocols such as opening shared secrets and random number
-generation are described. Next, higher level protocols like multiplication and
-field inversion are constructed using these primitives. Finally, we will
-present the formal theorems for the security of our protocol for computing
-ECDSA signatures.
+described. After this, some cryptographic primitives that will be used are
+defined. The ECDSA signature algorithm will then be introduced, and how it will
+be achieved in SMPC, making comparisons to previous work. The rest of the paper
+is dedicated to the SMPC protocols and their security. Initially, the more
+primitive protocols such as opening shared secrets and random number generation
+are described. Next, higher level protocols like multiplication and field
+inversion are constructed using these primitives. Finally, we will present the
+formal theorems for the security of our protocol for computing ECDSA
+signatures.
 
 \section{Background}
 
@@ -326,7 +327,7 @@ made precise in the following definition.
 Many of the security definitions and consequently also the proofs of security
 are formulated in terms of probability theory. We therefore collect some key
 definitions and theorems that we will use in this \paper{} here. For more
-detailed on the underlying measure and probability theory, some key definitions
+details on the underlying measure and probability theory, some key definitions
 and theorems are collected in Appendix~\ref{app:prob} for convenience.
 
 We first define what it means for two random variables to have equal
@@ -588,10 +589,10 @@ formalised for our specific context as follows.
 
 In this section we will outline the security model and definitions that we will
 use to prove that the presented protocols are secure. In general, we will
-consider an malicious, rushing adversary with static corruptions. We also
-define the adversary to be computationally bounded, i.e.\ so that it cannot
-compute discrete logarithms, as in Assumption~\ref{ass:dlog}. In this \paper{}
-these properties should be assumed of the adversary unless specified otherwise.
+consider a malicious, rushing adversary with static corruptions. We also define
+the adversary to be computationally bounded, i.e.\ so that it cannot compute
+discrete logarithms, as in Assumption~\ref{ass:dlog}. In this \paper{} these
+properties should be assumed of the adversary unless specified otherwise.
 Further, we assume that each party is connected to each other by a private
 point-to-point channel, and that these channels allow for each party to verify
 that the message came from the specified sender, using e.g.\ a cryptographic
@@ -798,7 +799,7 @@ the following definitions, using the notation from~\cite{g16}.
 
 \begin{definition}[Completeness]
 	Completeness states that an honest prover should be able to convince an
-	honest verifier of a true statement.
+	honest verifier of a true statement. Precisely, we require that
 	\begin{align*}
 		\P\left[
 			\begin{matrix}
@@ -1002,8 +1003,8 @@ generation (RZG), random key-pair generation (RKPG), multiplication of shares
 these subprotocols in the same way as in~\cite{gjkr96} to compute the
 signature, with the following small differences:
 \begin{itemize}
-	\item We target the ECDSA algorithm targeted at using elliptic curves. This
-		means that~\cite{gjkr96} instead computes
+	\item We target the ECDSA algorithm adapted for elliptic curves. The
+		difference is that~\cite{gjkr96} instead computes
 		\begin{align*}
 			r &= \left(g^{k^{-1}} \mod p\right) \mod q\\
 			s & = k(m + xr) \mod q,
@@ -1059,7 +1060,7 @@ proofs will imply security in the weaker definition used by~\cite{gjkr96}%
 	adversary model.
 }.
 However, in this \paper{} we prove that these subprotocols are secure
-\textit{individually} and then make sure of the composability property of
+\textit{individually} and then make use of the composability property of
 Canetti's security definition to use them together, whereas in~\cite{gjkr96}
 the proof of security is given for the \textit{entire} signature protocol,
 instead of its constituent parts. We argue that this still means that the proof
@@ -1141,7 +1142,7 @@ and correct up to $\lfloor \frac{d}{2} \rfloor$ errors%
 \footnote{%
 	Note that these algorithms are also able to locate the errors when they are
 	corrected, which in our context means that we would be able to identify
-	corrupt nodes.
+	corrupt players.
 }.
 Notice that RS decoding allows us to recover the underlying polynomial, and so
 this means that we not only obtain the secret for our sharing but also all of
@@ -1153,7 +1154,7 @@ decoding algorithm as having the following input/output relationship:
 	\item Output: The message polynomial $c_0 + c_1 x + \cdots + c_{k-1}
 		x^{k-1}$, i.e.\ a polynomial of degree $k-1$ that satisfies
 		\begin{align*}
-			x_i = \sum_{j=0}^{k-1} c_j x^j \quad \forall j \in \seq{n},
+			x_i = \sum_{j=0}^{k-1} c_j i^j \quad \forall j \in \seq{n},
 		\end{align*}
 		or ``Decoding failure''.
 \end{itemize}
@@ -1391,12 +1392,12 @@ The goal of random number generation is for each of the parties to end up with
 shares of a global random number that none of the parties know. This technique
 was first introduced by Pedersen~\cite{p91a} and works as follows. Each player
 begins by generating a random number and creating shares of it. These shares
-are then sent too all other players, after which each player should have a
-share of the random numbers of the other players, as well as one of their own.
-These shares are then summed to produce a single share of the sum of each
-players random number. If at least one of the players that participated picked
-their random number uniformly randomly, then the global random number will also
-be uniformly random.
+are then sent to all other players, after which each player should have a share
+of the random numbers of the other players, as well as one of their own.  These
+shares are then summed to produce a single share of the sum of each players
+random number. If at least one of the players that participated picked their
+random number uniformly randomly, then the global random number will also be
+uniformly random.
 
 The main challenge of using this protocol in the presence of malicious
 adversaries is that of having the honest parties select the same subset of
@@ -1445,7 +1446,7 @@ uniformly random, but also the \textit{sharing} of this random number is
 random; each possible sharing of the random number is equally as likely.
 Unfortunately, this latter condition is easily thwarted by a rushing adversary,
 as they can observe the honest parties' shares first, and then pick their
-random numbers associated sharings to be such that their final shares (the sum
+random numbers' associated sharings to be such that their final shares (the sum
 of the shares from the chosen subset of parties) are biased. For example, when
 using Tendermint for the consensus protocol, the proposer of a block may be a
 corrupted party. If this is the case, they are in fact able to realise the
@@ -1457,8 +1458,8 @@ technical difficulty%
 	There may be a clever way to modify the ideal functionality so that it
 	still faithfully represents the goal of random number generation but allows
 	this biasing of the shares by the adversary. However, the authors are not
-	aware of a way to do this, or whether it is safe to allow the biasing of
-	the shares.
+	aware of a way to do this, or whether it is safe in general to allow the
+	biasing of the shares.
 }, we will not prove that $\piBRNG{n,k}$ is secure in
 Canetti's security framework but rather just prove its key properties that will
 be relevant when we use $\piBRNG{n,k}$ to construct an unbiased protocol
@@ -1506,10 +1507,15 @@ We are interested in the following properties.
 			will have been generated by an honest party and hence be uniformly
 			random. The property then follows from Corollary~\ref{cor:unif}.
 
-		\item \textit{Secrecy}: We will begin by showing the second property
-			required for secrecy: that the shares of the honest parties appear
-			uniformly random, given the constraints. The first property will
-			follow as a consequence. Let
+		\item \textit{Secrecy}: The first property required for secrecy is
+			straightforward to show. Since $t < k$, the corrupted parties never
+			receive enough shares of any of the honest parties' contributions,
+			of which there will be at least one since $|I| > t$. The result
+			then follows from the basic properties of Shamir secret sharing.
+			
+			Now we will show the second property required for secrecy: that the
+			shares of the honest parties appear uniformly random, given the
+			constraints. Let
 			$y_c = {(y_i)}_{i \in \mathcal{I}_c}$
 			and
 			$y_h = {(y_i)}_{i \in \mathcal{I}_h}$,
@@ -1550,12 +1556,6 @@ We are interested in the following properties.
 			uniformly distributed in $\F^{k-t}$. This fact combined with
 			Eq.~\eqref{eq:brngSecrecy} gives the desired result.
 
-			The first property required for secrecy now follows easily: we saw
-			above that ${(y_i)}_{i \in K}$ is uniformly distributed, and hence
-			for any particular $i \in K$ it follows that $y_i$ is uniformly
-			distributed. However, we would theoretically have $0 \in K$, in
-			which case $y_0$ would be the secret for the sharing, and hence
-			this too is uniformly random conditioned on $y_c$.
 	\end{itemize}
 \end{proof}
 
@@ -1635,10 +1635,7 @@ follows.
 			parties for Step~\ref{enum:rngCoeff}. In doing so, $\mathcal{S}$
 			learns the biased shares ${\left(r_i^{(j)}\right)}_{j \in
 			\seqZ{k-1}}$ for each $i \in \mathcal{I}_c$, i.e.\ for each
-			corrupted party. Label the messages sent and received by
-			$\mathcal{A}$ during the invocations of $\piBRNG{n,k}$ as $m$, and
-			the messages that $\mathcal{A}$ would send to the invocations of
-			$\piDOpen{n,k,j}$ as $m_o$.
+			corrupted party.
 
 		\item $\mathcal{S}$ constructs the honest parties' shares
 			${\left({\left(r_i^{(j)}\right)}_{i \in \mathcal{I}_h}\right)}_{j
@@ -1695,10 +1692,10 @@ follows.
 	the former, we need only consider the former (messages received during the
 	directed opens). In the real world view $\execD$, these are just uniformly
 	random shares of uniformly random numbers conditioned on the fact that they
-	be consistent with the corrupted parties shares. This follows from the fact
-	that this is true for the honest parties' shares from $\piBRNG{n,k}$ (from
-	the secrecy property), and that the shares in the directed opens are just
-	linear combinations of these shares. In the ideal case view $\idealD$,
+	are consistent with the corrupted parties shares. This follows from the
+	fact that this is true for the honest parties' shares from $\piBRNG{n,k}$
+	(from the secrecy property), and that the shares in the directed opens are
+	just linear combinations of these shares. In the ideal case view $\idealD$,
 	these shares are constructed by working backwards from the output shares.
 	Since the output sharing is uniformly random, it follows that the
 	coefficients ${(c_i)}_{i \in \seqZ{k-1}}$ that $\mathcal{S}$ constructs
@@ -1773,7 +1770,7 @@ functionality $\fRKPG{n,k}$ takes no inputs and outputs to each party $P_i$ a
 share $x_i$ of some uniformly random $x \in \F$ and $y$ such that $y = xG \in
 \G$ where $\G$ is a group with generator $G$, written with additive notation.
 Additionally, to enable the proof of security to work each party will also
-output $x_1 G$ for each $i \in \mathcal{I}$. This modification will be
+output $x_i G$ for each $i \in \mathcal{I}$. This modification will be
 discussed after presenting the passively secure protocol ${\piRKPG{n,k}}'$ for
 $\fRKPG{n,k}$. We begin with this passively secure protocol and then discuss
 how it can be augmented to achieve security against malicious adversaries
@@ -1872,7 +1869,7 @@ hard. This is summarised in the following theorem.
 \end{proof}
 
 We now discuss how to augment ${\piRKPG{n,k}}'$ to be secure in the presence of
-an malicious adversary. This is not too difficult to achieve; the only part of
+a malicious adversary. This is not too difficult to achieve; the only part of
 the passively secure protocol in which the adversary can send (modified)
 messages is in step~\ref{enum:rkpgPassBC}. This can hinder the reconstruction
 of the global public key and also the public keys corresponding to the shares
@@ -1999,7 +1996,9 @@ to disallow the adversary to reconstruct secrets.
 
 The ideal functionality $\fInv{n,k}$ that represents the field inversion
 protocol takes as input a sets of shares of a field element and gives as output
-to each party shares of the multiplicative inverse of this field element.
+to each party shares of the multiplicative inverse of this field element. This
+is the same as the inversion protocol in~\cite{gjkr96} and was initially
+introduced in~\cite{bb89}.
 
 Let $a_\mathcal{I}$ be a $k$-sharing of a field element $a \in \F$. The
 protocol $\piInv{n,k}(a_\mathcal{I})$ is defined by
